@@ -1,0 +1,4 @@
+singleton Config Config.qml
+singleton Themes Themes.qml
+singleton Motion Motion.qml
+singleton Paths Paths.qml

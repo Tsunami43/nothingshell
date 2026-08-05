@@ -1,0 +1,18 @@
+{
+  "_comment": [
+    "Copy to greeter.json, or let install.sh generate it — it fills in the user it was sudo'd",
+    "from and the Exec line of the installed wayland session.",
+    "",
+    "user:        the account this greeter logs in. One greeter, one account: the login screen",
+    "             this is modelled on has a name and a password field, not a user list.",
+    "command:     argv of the session to start, as an array. Usually the Exec of",
+    "             /usr/share/wayland-sessions/*.desktop.",
+    "environment: passed to the session on top of what greetd sets. Optional.",
+    "theme:       which curated theme the login screen wears (see shell/Themes.qml). Optional;",
+    "             the greeter cannot read the user's own settings, so it needs telling."
+  ],
+  "user": "yourname",
+  "command": ["/usr/bin/Hyprland"],
+  "environment": ["XDG_SESSION_TYPE=wayland", "XDG_CURRENT_DESKTOP=Hyprland"],
+  "theme": "cyberpunk"
+}

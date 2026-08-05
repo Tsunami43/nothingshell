@@ -1,0 +1,55 @@
+name: lint
+
+# What this can and cannot catch, so nobody reads a green tick as more than it is: qmllint sees
+# unqualified lookups, missing properties and broken imports — the class of mistake that shows up
+# as an empty panel at runtime with nothing in the log. It does not run the shell, so anything
+# about layout, timing or the compositor is still on a human.
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  qml:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - name: Install tooling
+        # quickshell for the QML modules the tree imports, shadertools for qsb, git for checkout.
+        run: pacman -Syu --noconfirm git qt6-declarative qt6-multimedia qt6-shadertools quickshell
+
+      - uses: actions/checkout@v4
+
+      - name: Shaders compile
+        run: ./assets/build-shaders.sh
+
+      - name: qmllint
+        # The imports are `qs.services` module URIs, which only quickshell can resolve — qmllint
+        # alone reports every one of them as missing. Running the shell once with an empty
+        # .qmlls.ini present makes quickshell write the generated type paths into it, and those go
+        # to qmllint as -I. Offscreen, so no Wayland surface is ever mapped.
+        run: |
+          touch .qmlls.ini
+          QT_QPA_PLATFORM=offscreen timeout 15 qs -p . || true
+          build_dir=$(grep -oP '(?<=buildDir=")[^"]*' .qmlls.ini)
+          test -n "$build_dir"
+
+          # Filtered: quickshell's types are not creatable from QML by design, and its qmltypes do
+          # not describe every grouped property. Errors are never filtered.
+          /usr/lib/qt6/bin/qmllint --import disable -I "$build_dir" -I /usr/lib/qt6/qml -I /usr/bin \
+            $(find . -name '*.qml' -not -path './.git/*') 2>&1 | tee lint.log
+          ! grep -q '^Error' lint.log
+
+  shell-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax-check every script
+        run: |
+          for f in greeter/install.sh greeter/session.sh assets/build-shaders.sh; do
+            case "$f" in
+              greeter/install.sh) bash -n "$f" ;;
+              *) sh -n "$f" ;;
+            esac
+            echo "ok  $f"
+          done
