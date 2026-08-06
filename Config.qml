@@ -32,6 +32,7 @@ Singleton {
     property alias autoColors: cfg.autoColors           // colours follow the wallpaper (Material You) vs curated preset
     property alias autoLight: cfg.autoLight             // in auto mode: light scheme vs dark
     property alias motionScale: cfg.motionScale         // global animation speed multiplier (Motion.scale)
+    property alias batterySaver: cfg.batterySaver       // trade eye-candy and polling for runtime while on battery (services/Power.qml)
     property alias vpnProviders: cfg.vpnProviders       // [{name,iface,connectCmd,disconnectCmd}]
     property alias vpnSelected: cfg.vpnSelected         // name of the active provider
     property alias fontPreset: cfg.fontPreset           // text face: a key from fontFiles
@@ -111,6 +112,8 @@ Singleton {
             property bool autoColors: false
             property bool autoLight: false
             property real motionScale: 1.0
+            // On by default; it only engages on a machine running off a battery.
+            property bool batterySaver: true
             property var vpnProviders: []
             property string vpnSelected: ""
             property string fontPreset: "departure"
@@ -179,6 +182,9 @@ Singleton {
     // The theme's looping video (wallpaper + lock background). None in auto mode, where the
     // static Config.wallpaper shows through.
     readonly property string videoWallpaper: autoColors ? "" : preset.wallpaper
+    // The still that video was cut from, shown wherever the decoder is stopped.
+    readonly property string videoWallpaperPoster:
+        videoWallpaper ? videoWallpaper.replace(/\/([^/]+)\.mp4$/, "/thumbs/$1.jpg") : ""
     // Bump an app's launch count (frequency sorting in the launcher).
     function bumpAppUsage(id) {
         if (!id) return;

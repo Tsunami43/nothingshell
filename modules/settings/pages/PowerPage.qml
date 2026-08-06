@@ -5,10 +5,8 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
-import Quickshell
 import qs
 import qs.services
-import qs.components
 import qs.modules.settings.common
 StackView {
     id: stack
@@ -88,8 +86,19 @@ StackView {
                     label: "Charge"; value: Bat.percent + "%"
                 }
                 InfoRow {
+                    first: false; last: false
+                    icon: "power"; label: "State"
+                    value: Bat.charging ? "Charging" : (Bat.onBattery ? "Discharging" : "On mains")
+                }
+                ToggleRow {
                     first: false; last: true
-                    icon: "power"; label: "State"; value: Bat.charging ? "Charging" : "Discharging"
+                    text: "Battery saver"
+                    // Names what it gives up, so nobody has to read services/Power.qml to find out.
+                    subtext: Power.saving
+                        ? "Active — live wallpaper, window previews, frame shader and background polling are off"
+                        : "While on battery: pause the live wallpaper and window previews, flatten the frame, shorten animations and stop background polling"
+                    checked: Config.batterySaver
+                    onToggled: Config.batterySaver = !Config.batterySaver
                 }
             }
 
@@ -97,30 +106,23 @@ StackView {
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 3
-                ButtonRow {
-                    first: true; last: false
-                    icon: "lock"; label: "Lock now"
-                    onClicked: { Shell.settingsVisible = false; Lock.locked = true; }
-                }
-                ButtonRow {
-                    first: false; last: false
-                    icon: "logout"; label: "Log out"; destructive: true
-                    onClicked: Quickshell.execDetached(["hyprctl", "dispatch", "exit"])
-                }
-                ButtonRow {
-                    first: false; last: false
-                    icon: "bedtime"; label: "Suspend"; destructive: true
-                    onClicked: Quickshell.execDetached(["systemctl", "suspend"])
-                }
-                ButtonRow {
-                    first: false; last: false
-                    icon: "restart_alt"; label: "Reboot"; destructive: true
-                    onClicked: Quickshell.execDetached(["systemctl", "reboot"])
-                }
-                ButtonRow {
-                    first: false; last: true
-                    icon: "power_settings_new"; label: "Shut down"; destructive: true
-                    onClicked: Quickshell.execDetached(["systemctl", "poweroff"])
+                // Every verb services/Session.qml offers; the bar shows a subset of the same list.
+                Repeater {
+                    model: Session.actions
+                    ButtonRow {
+                        required property var modelData
+                        required property int index
+                        first: index === 0
+                        last: index === Session.actions.length - 1
+                        icon: modelData.icon
+                        label: modelData.label
+                        destructive: modelData.destructive
+                        // Locking leaves the shell running, so the window has to get out of the way.
+                        onClicked: {
+                            if (modelData.id === "lock") Shell.settingsVisible = false;
+                            modelData.run();
+                        }
+                    }
                 }
             }
         }

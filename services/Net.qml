@@ -10,6 +10,9 @@ import Quickshell.Io
 Singleton {
     id: root
 
+    // Once at start-up whatever the polling policy is: the monitor only reports changes.
+    Component.onCompleted: { netProc.running = true; conProc.running = true; }
+
     // `nmcli -t` escapes ':' inside values as '\:', so split on unescaped colons only.
     // Matters most for BSSIDs, which are nothing but colons.
     function splitEsc(line) {
@@ -174,10 +177,13 @@ Singleton {
             }
         }
     }
-    // A safety net, not the source of truth: `nmcli monitor` below reports every state change and
-    // refreshes both sweeps through nmDebounce. At 4s this respawned two processes fifteen times a
-    // minute forever for readings that had not changed.
-    Timer { interval: 30000; running: true; repeat: true; triggeredOnStart: true; onTriggered: netProc.running = true }
+    // A safety net, not the source of truth: `nmcli monitor` below reports every change.
+    // Off entirely on battery, where three spawns every 30s buy nothing.
+    Timer {
+        interval: Math.max(1, Power.netPollMs); running: Power.netPollMs > 0
+        repeat: true; triggeredOnStart: true
+        onTriggered: netProc.running = true
+    }
 
     // --- Wi-Fi scan ---
     // scan() re-reads the cached list (bar popout); rescanWifi() asks the radio to sweep first.
@@ -368,8 +374,12 @@ Singleton {
         Quickshell.execDetached(["nmcli", "con", "up", "id", name]);
         netRefresh.restart(); conRefresh.restart();
     }
-    // Same safety net as netProc's: profiles change through nmcli, which the monitor reports.
-    Timer { interval: 30000; running: true; repeat: true; triggeredOnStart: true; onTriggered: conProc.running = true }
+    // Same safety net as netProc's, off on battery for the same reason.
+    Timer {
+        interval: Math.max(1, Power.netPollMs); running: Power.netPollMs > 0
+        repeat: true; triggeredOnStart: true
+        onTriggered: conProc.running = true
+    }
     function vpnUp(name) {
         root.vpnList = root.vpnList.map(v => ({ name: v.name, active: v.name === name }));
         root.vpnActiveName = name; root.vpnActive = true;

@@ -25,3 +25,4 @@ singleton Actions Actions.qml
 singleton Clip Clip.qml
 singleton Idle Idle.qml
 singleton Session Session.qml
+singleton Power Power.qml

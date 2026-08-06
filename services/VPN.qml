@@ -83,9 +83,9 @@ Singleton {
         id: proc
         onExited: { root.busy = false; root.checkStatus(); }   // qmllint disable signal-handler-parameters
     }
-    // Poll status while any provider exists.
+    // Poll while any provider exists; throttled on battery rather than stopped.
     Timer {
-        interval: 5000; repeat: true; running: root.providers.length > 0; triggeredOnStart: true
+        interval: Power.vpnPollMs; repeat: true; running: root.providers.length > 0; triggeredOnStart: true
         onTriggered: root.checkStatus()
     }
 }

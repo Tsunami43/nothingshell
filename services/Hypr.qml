@@ -14,6 +14,7 @@ Singleton {
         Hyprland.refreshWorkspaces();
         Hyprland.refreshMonitors();
         fsSettle.restart();
+        kbProc.running = true;   // layout and device, before any event fires
     }
 
     readonly property var wsList:   Hyprland.workspaces?.values ?? []
@@ -130,9 +131,11 @@ Singleton {
             }
         }
     }
-    // Slow fallback only — the event keeps the layout live; this just refreshes the device name (rarely changes).
+    // Slow fallback: the event keeps the layout live, this only refreshes the device name.
+    // Off on battery, where start-up is the only read.
     Timer {
-        interval: 30000; running: true; repeat: true; triggeredOnStart: true
+        interval: Math.max(1, Power.kbDevicePollMs); running: Power.kbDevicePollMs > 0
+        repeat: true; triggeredOnStart: true
         onTriggered: kbProc.running = true
     }
 
