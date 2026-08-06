@@ -18,6 +18,10 @@ ConnectedRect {
     property bool live: false
     property alias input: field
     signal edited(string text)
+    // The field announces itself; this names what it is for.
+    Accessible.role: Accessible.EditableText
+    Accessible.name: row.label
+    Accessible.description: row.subtext
 
     // Follow the source while the field is idle; while editing, leave what is being typed alone.
     onValueChanged: if (!field.activeFocus) field.text = row.value

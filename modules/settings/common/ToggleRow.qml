@@ -11,6 +11,14 @@ ConnectedRect {
     property string subtext: ""
     property bool checked: false
     signal toggled()
+    // Assembled from primitives, so role, name and state all have to be stated.
+    Accessible.role: Accessible.CheckBox
+    Accessible.name: row.text
+    Accessible.description: row.subtext
+    Accessible.checkable: true
+    Accessible.checked: row.checked
+    Accessible.onToggleAction: row.toggled()
+    Accessible.onPressAction: row.toggled()
     Layout.fillWidth: true
     implicitHeight: subtext !== "" ? 60 : 52
     RowLayout {

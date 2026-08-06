@@ -10,9 +10,16 @@ Rectangle {
     property color tint: Config.fg
     property bool active: false
     property int iconSize: 16
+    // What the button does, in words: a Rectangle plus a MouseArea names itself nowhere else.
+    property string label: ""
     signal clicked()
     signal hoverIn()
     signal hoverOut()
+
+    // No checkable pair: `active` is a highlight, and stateful buttons say so in the label.
+    Accessible.role: Accessible.Button
+    Accessible.name: btn.label
+    Accessible.onPressAction: btn.clicked()
     Layout.alignment: Qt.AlignHCenter
     implicitWidth: 32; implicitHeight: 32; radius: 9
     color: active ? Config.accent : (btnMa.containsMouse ? Config.container : "transparent")

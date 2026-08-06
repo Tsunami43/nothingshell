@@ -18,6 +18,9 @@ ConnectedRect {
     // Set when the choices need their own font/colour treatment (the font picker previews faces).
     property var optionFont: null
     signal selected(var value)
+    Accessible.role: Accessible.ComboBox
+    Accessible.name: row.label
+    Accessible.description: row.subtext
 
     function optValue(o) { return (o && o.value !== undefined) ? o.value : o; }
     function optLabel(o) { return (o && o.label !== undefined) ? o.label : "" + o; }

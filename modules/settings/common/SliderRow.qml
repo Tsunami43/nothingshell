@@ -12,6 +12,10 @@ ConnectedRect {
     property real value: 0
     property string valueText: Math.round(row.value * 100) + "%"
     signal moved(real v)
+    Accessible.role: Accessible.Slider
+    Accessible.name: row.label
+    // The readout, not the raw 0..1.
+    Accessible.description: row.valueText
     Layout.fillWidth: true
     implicitHeight: 60
     ColumnLayout {

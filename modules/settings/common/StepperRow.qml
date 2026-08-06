@@ -20,6 +20,9 @@ ConnectedRect {
     // When set, it supersedes `step` (and its ends supersede from/to).
     property var ladder: null
     signal changed(real v)
+    Accessible.role: Accessible.SpinBox
+    Accessible.name: row.label
+    Accessible.description: row.valueText
 
     readonly property real lo: (row.ladder && row.ladder.length) ? row.ladder[0] : row.from
     readonly property real hi: (row.ladder && row.ladder.length) ? row.ladder[row.ladder.length - 1] : row.to

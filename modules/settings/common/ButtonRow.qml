@@ -16,6 +16,10 @@ ConnectedRect {
     property bool busy: false
     readonly property color tint: row.destructive ? Config.danger : Config.accent
     signal clicked()
+    Accessible.role: Accessible.Button
+    Accessible.name: row.label
+    Accessible.description: row.subtext
+    Accessible.onPressAction: row.clicked()
 
     Layout.fillWidth: true
     implicitHeight: row.subtext !== "" ? 60 : 52

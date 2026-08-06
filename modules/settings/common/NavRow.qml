@@ -16,6 +16,10 @@ ConnectedRect {
     property string actionIcon: ""
     property color actionTint: Config.fg
     signal clicked()
+    // A row that opens a sub-page, so: a button.
+    Accessible.role: Accessible.Button
+    Accessible.name: row.label
+    Accessible.description: row.status
     signal actionClicked()
     Layout.fillWidth: true
     implicitHeight: 54

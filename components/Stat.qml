@@ -9,8 +9,14 @@ ColumnLayout {
     property string icon
     property string value
     property color tint: Config.tertiary
+    // What the figure means: the value is a bare number and the glyph is invisible to a reader.
+    property string label: ""
     Layout.alignment: Qt.AlignHCenter
     spacing: -1
+
+    Accessible.role: Accessible.StaticText
+    Accessible.name: stat.label
+    Accessible.description: stat.value
     MatIcon {
         Layout.alignment: Qt.AlignHCenter
         text: stat.icon

@@ -8,5 +8,7 @@ Text {
     font.pixelSize: 16
     color: Config.fg
     horizontalAlignment: Text.AlignHCenter
+    // The text here is a glyph name, so a screen reader would read out the font's internals.
+    Accessible.ignored: true
     Behavior on color { ColorAnim {} }
 }

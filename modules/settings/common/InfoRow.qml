@@ -10,6 +10,10 @@ ConnectedRect {
     property string icon: ""
     property string label: ""
     property string value: ""
+    // A fact, not a control.
+    Accessible.role: Accessible.StaticText
+    Accessible.name: row.label
+    Accessible.description: row.value
     Layout.fillWidth: true
     implicitHeight: 46
     RowLayout {
