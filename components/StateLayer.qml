@@ -62,7 +62,9 @@ MouseArea {
     Item {
         id: shapeMask
         anchors.fill: parent
-        layer.enabled: true
+        // An FBO of its own, so gate it. Hover as well as ripple: both switching on in the same
+        // frame would leave MultiEffect sampling a mask that has not rendered yet.
+        layer.enabled: sl.containsMouse || rip.opacity > 0
         visible: false
         Rectangle {
             anchors.fill: parent
