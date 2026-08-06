@@ -4,7 +4,6 @@
 // UseQApplication is required for native system-tray context menus.
 import QtQuick
 import Quickshell
-import Quickshell.Wayland
 import Quickshell.Io
 import Quickshell.Hyprland
 import qs
@@ -31,10 +30,9 @@ ShellRoot {
     // HyprColors is a singleton: touching it here is what instantiates it, and the call
     // pushes the current palette into Hyprland's borders/background right away.
     Component.onCompleted: { Hyprland.refreshToplevels(); Hyprland.refreshWorkspaces(); HyprColors.apply(); }
-    // Same lazy-singleton problem, but as a live binding: Clip owns the `wl-paste --watch` process,
-    // which would otherwise only start when the launcher first opened "#" — leaving the history
-    // empty exactly when it is wanted. Bound to a constant so it doesn't re-evaluate per copy.
-    readonly property bool clipAlive: Clip.maxBytes > 0
+    // Lazy singletons with no other reference in the tree: touching them here is what starts
+    // the clipboard watcher and the idle monitors.
+    readonly property var eagerServices: [Clip, Idle]
 
     // Lets a Hyprland keybind toggle the launcher: `qs -c nothingshell ipc call launcher toggle`.
     IpcHandler {
@@ -89,21 +87,7 @@ ShellRoot {
         value: (Config.notifSuppressFullscreen && Hypr.fullscreenActive) || (Config.notifSuppressGame && GameMode.enabled)
     }
 
-    // Lock the screen after Config.autoLockTimeout idle; keep-awake (idle inhibitor) and game mode suppress it.
-    IdleMonitor {
-        enabled: Config.autoLock && !Lock.locked && !GameMode.enabled
-        timeout: Config.autoLockTimeout
-        respectInhibitors: true
-        onIsIdleChanged: if (isIdle && Config.autoLock) Lock.locked = true
-    }
-    // Blank the displays after Config.dpmsTimeout idle (0 = never). Separate from the lock so the
-    // two can be tuned independently — screens off long before, or well after, the lock kicks in.
-    IdleMonitor {
-        enabled: Config.dpmsTimeout > 0 && !GameMode.enabled
-        timeout: Math.max(1, Config.dpmsTimeout)
-        respectInhibitors: true
-        onIsIdleChanged: Quickshell.execDetached(["hyprctl", "dispatch", "dpms", isIdle ? "off" : "on"])
-    }
+    // Auto-lock and blanking live in services/Idle.qml, which publishes displaysOff.
 
     // The windows. Everything below is per-screen except the lock screen (one session-wide
     // surface) and Settings (a normal application window the compositor places itself).
