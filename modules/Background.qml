@@ -44,13 +44,22 @@ PanelWindow {
         }
     }
 
-    // Live video wallpaper (over the still image; only when a video is configured).
-    // Paused whenever nothing can see it: a full-screen window covers the desktop outright, and
-    // the lock screen draws its own copy on top. Decoding either case is pure waste.
+    // The video's own still, drawn only while the decoder is stopped.
+    Image {
+        anchors.fill: parent
+        visible: Config.videoWallpaperPoster !== "" && !Power.videoWallpaper
+        source: visible ? Config.videoWallpaperPoster : ""
+        fillMode: Image.PreserveAspectCrop
+        asynchronous: true
+        cache: true
+        sourceSize: Qt.size(width, height)
+    }
+
+    // Live video wallpaper, paused whenever nothing can see it: fullscreen, lock, blanked screens.
     VideoWall {
         anchors.fill: parent
         visible: Config.videoWallpaper.length > 0
-        active: !Hypr.fullscreenActive && !Lock.locked
+        active: Power.videoWallpaper && !Hypr.fullscreenActive && !Lock.locked && !Idle.displaysOff
         file: Config.videoWallpaper
     }
 

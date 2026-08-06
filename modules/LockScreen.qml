@@ -16,10 +16,22 @@ WlSessionLock {
         id: lockSurface
         color: Config.bg
 
-        // Live video background (same source as the desktop live wallpaper).
+        // The video's still, for when the decoder is stopped (battery saver).
+        Image {
+            anchors.fill: parent
+            visible: Config.videoWallpaperPoster !== "" && !Power.videoWallpaper
+            source: visible ? Config.videoWallpaperPoster : ""
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            cache: true
+            sourceSize: Qt.size(width, height)
+        }
+
+        // Live video background, paused while the outputs are blanked — most of a lock's life.
         VideoWall {
             anchors.fill: parent
             visible: Config.videoWallpaper.length > 0
+            active: Power.videoWallpaper && !Idle.displaysOff
             file: Config.videoWallpaper
         }
         // Scrim so the clock + password stay readable over the video.
