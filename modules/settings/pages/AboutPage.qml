@@ -10,7 +10,6 @@ import Quickshell
 import Quickshell.Io
 import qs
 import qs.services
-import qs.components
 import qs.modules.settings.common
 StackView {
     id: stack

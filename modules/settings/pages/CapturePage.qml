@@ -9,7 +9,6 @@ import QtQuick.Controls
 import Quickshell
 import qs
 import qs.services
-import qs.components
 import qs.modules.settings.common
 StackView {
     id: stack
