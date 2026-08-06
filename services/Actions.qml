@@ -187,11 +187,10 @@ Singleton {
         case "clipClear": Clip.clear(); return false;
         case "regenTheme": Wallpaper.regenTheme(); return true;
         case "reload": Quickshell.reload(false); return true;
-        case "lock": Shell.launcherVisible = false; Lock.locked = true; return true;
-        case "logout": Quickshell.execDetached(["hyprctl", "dispatch", "exit"]); return true;
-        case "suspend": Quickshell.execDetached(["systemctl", "suspend"]); return true;
-        case "reboot": Quickshell.execDetached(["systemctl", "reboot"]); return true;
-        case "poweroff": Quickshell.execDetached(["systemctl", "poweroff"]); return true;
+        // The palette's session args are Session's own ids, so the commands stay in one place.
+        case "lock": Shell.launcherVisible = false; Session.lock(); return true;
+        case "logout": case "suspend": case "reboot": case "poweroff":
+            return Session.run(what);
         }
         return true;
     }
