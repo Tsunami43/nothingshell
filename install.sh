@@ -64,7 +64,7 @@ ask() {
 # that feature, so a package that is missing from the repositories is a note, not a failure.
 REQUIRED=(quickshell hyprland qt6-shadertools qt6-declarative qt6-multimedia)
 OPTIONAL=(networkmanager bluez-utils wl-clipboard grim slurp libnotify python cava ddcutil
-          xdg-utils pciutils upower otf-atkinsonhyperlegiblemono-nerd)
+          brightnessctl xdg-utils pciutils upower otf-atkinsonhyperlegiblemono-nerd)
 AUR=(gpu-screen-recorder matugen)
 
 install_packages() {
@@ -130,6 +130,14 @@ install_packages() {
         note "ddcutil is installed but your user is not in the 'i2c' group, so every external"
         note "monitor brightness read will fail silently and the widget will hide itself:"
         note "  sudo modprobe i2c-dev && sudo usermod -aG i2c $USER   (then log out and back in)"
+    fi
+
+    # The laptop half: writing the backlight needs the 'video' group the udev rule grants to.
+    if ls /sys/class/backlight/* >/dev/null 2>&1 && ! id -nG | grep -qw video; then
+        note ""
+        note "This machine has a backlight but your user is not in the 'video' group, so the"
+        note "brightness widget will read but not write:"
+        note "  sudo usermod -aG video $USER   (then log out and back in)"
     fi
 }
 
