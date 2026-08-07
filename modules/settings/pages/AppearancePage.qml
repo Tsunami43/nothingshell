@@ -191,15 +191,7 @@ StackView {
             }
 
             SectionHeader { text: "Motion" }
-            SliderRow {
-                first: true; last: true
-                icon: "speed"
-                label: "Animation speed"
-                // Stored as a duration multiplier, shown as speed, so dragging right feels faster.
-                value: (2.0 - Config.motionScale) / 1.75
-                valueText: Config.motionScale === 1 ? "Normal" : (1 / Config.motionScale).toFixed(2) + "×"
-                onMoved: v => Config.motionScale = Math.round((2.0 - v * 1.75) * 20) / 20
-            }
+            MotionSpeedRow { first: true; last: true }
         }
     }
 

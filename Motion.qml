@@ -10,7 +10,7 @@ import qs
 Singleton {
     id: root
 
-    // Written by Settings > Appearance. Assignable, so a one-off override still works.
+    // Written by Settings > Shell, pushed down by Power on battery. Zero means instant.
     property real scale: Config.motionScale
 
     // --- Easing curves (cubic-bézier control points) ---
@@ -24,8 +24,9 @@ Singleton {
     readonly property var colorCurve: [0.34, 0.88, 0.34, 1, 1, 1]
 
     // --- Base durations (ms), before `scale` ---
-    readonly property int spatialMs: 460
-    readonly property int spatialFastMs: 340
+    // Against the usual budget: 200-300ms for a panel, 100-150 for a small element, never over 400.
+    readonly property int spatialMs: 380
+    readonly property int spatialFastMs: 200
     readonly property int effectMs: 200
     readonly property int colorMs: 280
 

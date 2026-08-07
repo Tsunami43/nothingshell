@@ -7,7 +7,6 @@ import QtQuick.Layouts
 import QtQuick.Controls
 import qs
 import qs.services
-import qs.components
 import qs.modules.settings.common
 StackView {
     id: stack
@@ -49,14 +48,7 @@ StackView {
             }
 
             SectionHeader { text: "Motion" }
-            SliderRow {
-                first: true; last: true
-                icon: "speed"
-                label: "Animation speed"
-                value: (2.0 - Config.motionScale) / 1.75
-                valueText: Config.motionScale === 1 ? "Normal" : (1 / Config.motionScale).toFixed(2) + "×"
-                onMoved: v => Config.motionScale = Math.round((2.0 - v * 1.75) * 20) / 20
-            }
+            MotionSpeedRow { first: true; last: true }
         }
     }
 
@@ -101,7 +93,9 @@ StackView {
                 ToggleRow {
                     first: false; last: false
                     text: "Brightness"
-                    subtext: Brightness.available ? "" : "No DDC/CI monitor detected — hidden anyway"
+                    subtext: Brightness.hasInternal ? "Laptop panel"
+                           : (Brightness.hasDdc ? "External monitor over DDC/CI"
+                                                : "No backlight and no DDC/CI monitor found — hidden anyway")
                     checked: Config.barBrightness
                     onToggled: Config.barBrightness = !Config.barBrightness
                 }
