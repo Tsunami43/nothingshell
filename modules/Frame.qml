@@ -1,7 +1,5 @@
-// Unified screen frame: the bar (thick left border) plus thin top/right/bottom ones as a single
-// SDF surface, with concave coves where they meet (assets/frame.frag). Full-screen via
-// ExclusionMode.Ignore so its coords are the real screen, drawn above windows with input passing
-// through, hidden under a fullscreen one. The bar keeps its own window on top for the widgets.
+// Screen frame: the bar plus three thin borders as one surface, coves where they meet.
+// Two implementations, picked by services/Power.qml: the SDF shader, or plain rects on battery.
 pragma ComponentBehavior: Bound
 
 import QtQuick
@@ -15,50 +13,75 @@ PanelWindow {
     required property var modelData
     property bool suppressed: false
     property int barWidth: 56
+    // Shared, so the flat surface lands on the same geometry as the shader.
+    readonly property real borderT: 8    // top/right/bottom border thickness
+    readonly property real holeR: 20     // content-hole and popout corner radius
     screen: modelData
 
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
-    // Keep the surface mapped across fullscreen toggles (unmap→remap is unreliable, see Bar.qml);
-    // hide the shader instead. mask is already empty, so there is no input to gate.
+    // Keep the surface mapped across fullscreen toggles; unmap→remap is unreliable (see Bar.qml).
     visible: true
     exclusionMode: ExclusionMode.Ignore   // span the whole output; coords = real screen
     WlrLayershell.layer: WlrLayer.Top
-    mask: Region {}   // clicks pass through everywhere (the bar window handles bar input)
+    mask: Region {}   // clicks pass through; the bar window handles bar input
 
-    // No layer.effect drop shadow: caching the frame into a layer stopped it presenting new
-    // frames when only the bulge changed, leaving popouts over a stale background. Depth comes
-    // from the shader's bevel; free-floating popouts (the OSDs) use Elevation.
+    // One popout slot as a plain plate — the flat frame's answer to a bulge.
+    component Plate: Rectangle {
+        id: plate
+        required property vector4d box
+        // Size eases from the same anchor the shader uses, so a popout still grows out of the border.
+        property vector2d anchor: Qt.vector2d(0, 0)
+        property bool eased: true
+        // Gated on the animating width: clearing a slot zeroes the box at once.
+        visible: plate.width > 0.5
+        width: plate.box.z
+        height: plate.box.w
+        x: plate.box.x + (plate.box.z - plate.width) * plate.anchor.x
+        y: plate.box.y + (plate.box.w - plate.height) * plate.anchor.y
+        radius: frame.holeR
+        color: Config.bg
+        Behavior on width { NumberAnimation { duration: plate.eased ? Motion.spatialDur : 0; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.spatialCurve } }
+        Behavior on height { NumberAnimation { duration: plate.eased ? Motion.spatialDur : 0; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.spatialCurve } }
+    }
+
+    // No layer.effect shadow: caching this into a layer stops it presenting new bulges.
     Item {
         id: frameLayer
         anchors.fill: parent
-        visible: !frame.suppressed   // hide the frame under a fullscreen window
+        visible: !frame.suppressed   // hidden under a fullscreen window
+
+        Loader {
+            anchors.fill: parent
+            active: Power.frameShader
+            sourceComponent: sdfSurface
+        }
+        Loader {
+            anchors.fill: parent
+            active: !Power.frameShader
+            sourceComponent: flatSurface
+        }
+    }
+
+    Component {
+        id: sdfSurface
 
         ShaderEffect {
             id: sdf
-            anchors.fill: parent
             property real barW: frame.barWidth
-            property real t: 8        // top/right/bottom border thickness
-            property real r: 20       // content-hole corner radius
+            property real t: frame.borderT
+            property real r: frame.holeR
             property real k: 26       // cove size (smin)
             property real popK: 34    // popout bulge smoothing
-            // Open bar-popout body (screen px): x, y, z=w, w=h; read atomically, see PopoutState.
-            // Only the SIZE animates — a snapping position keeps a switch to a neighbouring
-            // widget from flying the bulge across the bar.
+            // Open popout body in screen px. Only the SIZE animates — a snapping position keeps
+            // a switch to a neighbouring widget from flying the bulge across the bar.
             property real bw: PopoutState.box.z
             property real bh: PopoutState.box.w
-            // Duration, not `enabled`: disabling a Behavior doesn't stop an animation in flight,
-            // so the old easing kept overwriting freshly reported sizes — that is what stuck the
-            // tray menu's bulge at the previous menu's height. Zero duration still intercepts the
-            // change and lands it in the same frame, which self-animating panels want.
+            // Duration, not `enabled`: disabling a Behavior doesn't stop an animation in flight.
             Behavior on bw { NumberAnimation { duration: PopoutState.animated ? Motion.spatialDur : 0; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.spatialCurve } }
             Behavior on bh { NumberAnimation { duration: PopoutState.animated ? Motion.spatialDur : 0; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.spatialCurve } }
 
-            // On this Qt build a shader uniform change alone doesn't mark the layer-shell window
-            // damaged, so with no animation running it kept presenting the previous bulge until
-            // something else dirtied the scene graph — the tray menu drew over a stale background
-            // and moving the cursor "fixed" it. Opacity 0.999 is a visual no-op that forces the
-            // repaint; the timer puts it back.
+            // A uniform change alone doesn't damage the layer surface here, so nudge a repaint.
             Timer { id: repaintKick; interval: 50; onTriggered: sdf.opacity = 1 }
             Connections {
                 target: PopoutState
@@ -66,22 +89,18 @@ PanelWindow {
                     sdf.opacity = 0.999;
                     repaintKick.restart();
                 }
-                // Same staleness trap for the side panel's slot: its box changes without any
-                // animation of ours running, so the window has to be nudged into repainting.
                 function onBox3Changed() {
                     sdf.opacity = 0.999;
                     repaintKick.restart();
                 }
             }
-            // Position derived from the animating size, so the bulge grows out of the border it
-            // belongs to: PopoutState.anchor is the point that stays put while bw/bh ease. The
-            // default (0,0) pins the top-left corner, what the bar popouts were written against.
+            // Position derived from the animating size, so the bulge grows out of its own border.
             readonly property vector4d pop: Qt.vector4d(
                 PopoutState.box.x + (PopoutState.box.z - bw) * PopoutState.anchor.x,
                 PopoutState.box.y + (PopoutState.box.w - bh) * PopoutState.anchor.y,
                 bw, bh)
 
-            // Second bulge (toast) — same in-place grow/shrink treatment.
+            // Second bulge (toast) — same treatment.
             property real bw2: PopoutState.box2.z
             property real bh2: PopoutState.box2.w
             Behavior on bw2 { NumberAnimation { duration: Motion.spatialDur; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.spatialCurve } }
@@ -90,25 +109,53 @@ PanelWindow {
                 PopoutState.box2.x + (PopoutState.box2.z - bw2) * PopoutState.anchor2.x,
                 PopoutState.box2.y + (PopoutState.box2.w - bh2) * PopoutState.anchor2.y,
                 bw2, bh2)
-            // Third bulge (side panel). It reports live geometry every frame while it slides, so
-            // easing here would only lag the panel this is the background of.
+            // Third bulge (side panel): reported live every frame, so easing would only lag it.
             readonly property vector4d pop3: PopoutState.box3
 
             property color fillColor: Config.bg
-            // Raised edge on the surface itself: a drop shadow only shows against light content,
-            // and the windows against the frame are usually dark. Its own palette role because
-            // the direction it travels from the fill depends on the mode.
+            // Raised edge on the surface itself; a drop shadow only shows against light content.
             property color bevelColor: Config.bevel
-            // Tight falloff on purpose: at 2.5 the tint spread ~12px and saturated the perimeter
-            // into a uniform halo, which reads as a glow rather than depth. Pulled in, the light
-            // collects into a line along the boundary.
+            // Tight falloff: wider spreads read as a glow rather than depth.
             property real bevelR: 1.2
             property real bevelA: 1.0
-            // Which way the overhead light shades the edge: a dark theme wants a highlight, a
-            // light one a contact shadow — opposite responses to the same normal.
+            // Dark themes want a highlight, light ones a contact shadow.
             property real bevelDir: Config.lightMode ? -1.0 : 1.0
             readonly property vector2d res: Qt.vector2d(width, height)
             fragmentShader: Qt.resolvedUrl("../assets/frame.frag.qsb")
+        }
+    }
+
+    Component {
+        id: flatSurface
+
+        // The same surface as rectangles. No coves, no bevel, no rounded recess — no GPU pass.
+        Item {
+            Rectangle {
+                anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                width: frame.barWidth
+                color: Config.bg
+            }
+            Rectangle {
+                anchors { left: parent.left; right: parent.right; top: parent.top }
+                height: frame.borderT
+                color: Config.bg
+            }
+            Rectangle {
+                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                height: frame.borderT
+                color: Config.bg
+            }
+            Rectangle {
+                anchors { top: parent.top; bottom: parent.bottom; right: parent.right }
+                width: frame.borderT
+                color: Config.bg
+            }
+
+            // Declared after the borders, so a plate overlaps the one it flows out of.
+            Plate { box: PopoutState.box;  anchor: PopoutState.anchor;  eased: PopoutState.animated }
+            Plate { box: PopoutState.box2; anchor: PopoutState.anchor2 }
+            // Slot 3 reports live geometry every frame; easing here would lag the panel.
+            Plate { box: PopoutState.box3; anchor: PopoutState.anchor3; eased: false }
         }
     }
 }
