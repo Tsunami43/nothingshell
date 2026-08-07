@@ -17,6 +17,11 @@ Singleton {
     property bool keepAwake: false   // idle inhibitor (see the bar's IdleInhibitor + toggle)
     property bool captureVisible: false   // screenshot/recording panel (modules/CapturePanel.qml)
     property string captureScreen: ""     // which output owns it; only that one takes keyboard focus
+    // The hover-opened surfaces, as flags a keybind can reach over IPC. Each panel keeps its
+    // flag in step both ways. Global rather than per-output, like launcherVisible.
+    property bool dashboardVisible: false
+    property bool overviewVisible: false
+    property string barPopout: ""         // "volume", "network", … see modules/Bar.qml
     // Open settings, optionally deep-linking to a page. Settings consumes settingsPage on show.
     function openSettings(pageId) {
         root.settingsPage = pageId ?? "";

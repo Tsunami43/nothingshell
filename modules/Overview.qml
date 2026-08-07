@@ -61,6 +61,8 @@ PanelWindow {
         // Checked first and returns: no hover transition may close the panel mid-drag.
         if (ovWin.dragging) { openTimer.stop(); closeTimer.stop(); ovWin.ovOpen = true; return; }
         if (ovWin.blocked) { openTimer.stop(); closeTimer.stop(); ovWin.ovOpen = false; return; }
+        // Keyboard route in: no settle delay, a keybind is not a cursor brushing past.
+        if (Shell.overviewVisible) { openTimer.stop(); closeTimer.stop(); ovWin.ovOpen = true; return; }
         if (ovWin.triggerHov || ovWin.panelHov) {
             closeTimer.stop();
             if (!ovWin.ovOpen) openTimer.restart();
@@ -80,7 +82,16 @@ PanelWindow {
     // list behind it is as long as the workspaces are, so the one you are actually on is usually
     // outside the viewport — landing on it is what makes the panel useful on open.
     // Deferred: it runs before the rows have laid out on the very first open otherwise.
-    onOvOpenChanged: { reportBox(); if (ovWin.ovOpen) Qt.callLater(ovWin.revealActive); }
+    onOvOpenChanged: {
+        reportBox();
+        if (ovWin.ovOpen) Qt.callLater(ovWin.revealActive);
+        // Clear the IPC flag on the way out, so the keybind can open it again.
+        else Shell.overviewVisible = false;
+    }
+    Connections {
+        target: Shell
+        function onOverviewVisibleChanged() { ovWin.ovUpdate(); }
+    }
     function revealActive() {
         const it = wsRep.itemAt(Hypr.activeWs - 1);   // null for a special workspace (negative id)
         if (!it) return;
@@ -96,7 +107,7 @@ PanelWindow {
     property int shotTick: 0
     Timer {
         interval: Math.max(400, Config.overviewRefreshMs)
-        running: ovWin.capturing && Config.overviewThumbs
+        running: ovWin.capturing && Power.windowThumbs
         repeat: true
         onTriggered: ovWin.shotTick++
     }

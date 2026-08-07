@@ -31,8 +31,8 @@ ShellRoot {
     // pushes the current palette into Hyprland's borders/background right away.
     Component.onCompleted: { Hyprland.refreshToplevels(); Hyprland.refreshWorkspaces(); HyprColors.apply(); }
     // Lazy singletons with no other reference in the tree: touching them here is what starts
-    // the clipboard watcher and the idle monitors.
-    readonly property var eagerServices: [Clip, Idle]
+    // the clipboard watcher, the idle monitors and Power's Motion binding.
+    readonly property var eagerServices: [Clip, Idle, Power]
 
     // Lets a Hyprland keybind toggle the launcher: `qs -c nothingshell ipc call launcher toggle`.
     IpcHandler {
@@ -45,6 +45,25 @@ ShellRoot {
     IpcHandler {
         target: "session"
         function toggle(): void { Shell.sessionVisible = !Shell.sessionVisible }
+    }
+    // The hover-opened surfaces, reachable without a pointer (see hypr/nothingshell.conf).
+    IpcHandler {
+        target: "dashboard"
+        function toggle(): void { Shell.dashboardVisible = !Shell.dashboardVisible }
+        function open(): void { Shell.dashboardVisible = true }
+        function close(): void { Shell.dashboardVisible = false }
+    }
+    IpcHandler {
+        target: "overview"
+        function toggle(): void { Shell.overviewVisible = !Shell.overviewVisible }
+        function open(): void { Shell.overviewVisible = true }
+        function close(): void { Shell.overviewVisible = false }
+    }
+    // Names as the bar uses them: volume, rec, brightness, network, bluetooth, vpn, traymenu, power.
+    IpcHandler {
+        target: "bar"
+        function popout(name: string): void { Shell.barPopout = name ?? "" }
+        function close(): void { Shell.barPopout = "" }
     }
     // `qs -c nothingshell ipc call settings toggle`, or `... settings open appearance` to land on a page
     // (ids come from modules/settings/PageRegistry.qml).

@@ -27,6 +27,8 @@ PanelWindow {
     property bool dashOpen: false
     onDashOpenChanged: {
         if (dashOpen) dashCalendar.reset();  // back to the current month, and re-read "today"
+        // Clear the IPC flag on the way out, so the keybind can reopen it.
+        else Shell.dashboardVisible = false;
         // The configured tab is restored once the panel is off-screen (see dashPanel.onYChanged),
         // not here: switching on the way out made the dashboard flip tabs in your face — and now
         // that its height follows the tab, resize itself — before it had finished leaving.
@@ -66,8 +68,13 @@ PanelWindow {
     onPanelHovChanged: dashUpdate()
     function dashUpdate() {
         if (blocked) { dashCloseTimer.stop(); dashOpen = false; }
-        else if (triggerHov || panelHov) { dashCloseTimer.stop(); dashOpen = true; }
+        else if (Shell.dashboardVisible || triggerHov || panelHov) { dashCloseTimer.stop(); dashOpen = true; }
         else dashCloseTimer.restart();
+    }
+    // Keyboard route in; the flag is cleared again in onDashOpenChanged above.
+    Connections {
+        target: Shell
+        function onDashboardVisibleChanged() { dashWin.dashUpdate(); }
     }
     Timer { id: dashCloseTimer; interval: 0; onTriggered: dashWin.dashOpen = false }
 
