@@ -15,7 +15,7 @@ BarPopout {
 
     // Kept in step both ways, so `ipc call session toggle` closes a hover-opened menu.
     onOpened: Shell.sessionVisible = true
-    onClosed: Shell.sessionVisible = false
+    onDismissed: Shell.sessionVisible = false
 
     // Mirror the IPC flag onto the popout slot rather than owning a second state.
     Connections {

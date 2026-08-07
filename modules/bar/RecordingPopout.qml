@@ -16,7 +16,7 @@ BarPopout {
     bodyHeight: 128
 
     // The widget vanishes on stop, so the hover-out that closes the others never arrives.
-    onClosed: if (pop.bar.popout === "rec") pop.bar.popout = ""
+    onDismissed: if (pop.bar.popout === "rec") pop.bar.popout = ""
 
     ColumnLayout {
         anchors.fill: parent

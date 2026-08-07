@@ -26,8 +26,10 @@ PopupWindow {
 
     readonly property bool shown: pop.bar.popout === pop.name && pop.available
     signal opened()
-    // Raised before the shared bulge slot is released.
-    signal closed()
+    // Raised before the shared bulge slot is released. NOT `closed`: PopupWindow already has a
+    // signal by that name, and the override is rejected — the handlers would then hang off the
+    // base signal instead.
+    signal dismissed()
 
     // Height to draw the bulge at when implicitHeight lags (the tray menu). Negative = use it.
     property real bulgeHeight: -1
@@ -49,7 +51,7 @@ PopupWindow {
 
     onShownChanged: {
         if (pop.shown) { pop.opened(); pop.report(undefined); return; }
-        pop.closed();
+        pop.dismissed();
         if (pop.bar.popout === "") PopoutState.clear(pop.bar.bulgeOwner);
     }
     // Content that resizes has to re-report, or the bulge keeps the old size.
