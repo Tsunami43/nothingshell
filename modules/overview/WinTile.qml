@@ -68,9 +68,8 @@ Rectangle {
     }
 
     // --- Thumbnail ---
-    // `captureSource: null` tears the capture context down, so gating on it is what makes a closed
-    // panel cost nothing at all. Assigning a source already grabs one frame, so a still needs no
-    // `live` — only the tile under the cursor streams.
+    // `captureSource: null` tears the context down, so a closed panel costs nothing.
+    // Assigning a source grabs one frame; only the tile under the cursor streams.
     ScreencopyView {
         id: shot
         anchors.centerIn: parent
@@ -80,7 +79,7 @@ Rectangle {
         constraintSize: Qt.size(tile.width - 6, tile.height - 6)
         paintCursor: false
         live: tile.hovered && (tile.panel?.capturing ?? false)
-        captureSource: (Config.overviewThumbs && (tile.panel?.capturing ?? false) && tile.toplevel?.wayland)
+        captureSource: (Power.windowThumbs && (tile.panel?.capturing ?? false) && tile.toplevel?.wayland)
                        ? tile.toplevel.wayland : null
         opacity: shot.hasContent && shot.sourceSize.width > 1 ? 1 : 0
         Behavior on opacity { Anim { type: Anim.Effect } }
