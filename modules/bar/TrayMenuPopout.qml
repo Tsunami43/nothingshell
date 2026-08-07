@@ -1,5 +1,5 @@
 // Tray menu popout: ours rather than native, because native menus don't hover-close.
-// The anchor moves with the cursor and the D-Bus menu resizes late, hence widget/bulgeHeight.
+// The anchor moves with the cursor and the D-Bus menu resizes late, hence widget/bulge().
 pragma ComponentBehavior: Bound
 
 import QtQuick
@@ -15,10 +15,16 @@ BarPopout {
     available: !!pop.bar.trayMenuAnchor && !!pop.bar.trayMenuHandle
     implicitWidth: 214
     bodyHeight: menuCol.implicitHeight + 24
-    // Straight off the layout; under a pixel means mid-reload, which report() ignores.
-    bulgeHeight: menuCol.implicitHeight + 24 + Config.popFillet * 2
     // Hovering another icon swaps the menu with no size change to react to.
     reportOnHover: true
+
+    // Read off the layout at call time, never through a binding — the reports come out of that
+    // layout's own change handler (see BarPopout.bulge). An empty layout is a menu mid-reload:
+    // zero keeps the bulge that is up until the refill reports the real size, instead of
+    // collapsing it to a stub and growing it back on every icon switch.
+    function bulge() {
+        return menuCol.implicitHeight < 1 ? 0 : menuCol.implicitHeight + 24 + Config.popFillet * 2;
+    }
 
     Connections {
         target: pop.bar

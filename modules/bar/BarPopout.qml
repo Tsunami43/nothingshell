@@ -31,8 +31,14 @@ PopupWindow {
     // base signal instead.
     signal dismissed()
 
-    // Height to draw the bulge at when implicitHeight lags (the tray menu). Negative = use it.
-    property real bulgeHeight: -1
+    // Height to draw the bulge at where implicitHeight lags (the tray menu). Negative = use
+    // implicitHeight; zero = the body is mid-reload, keep the bulge that is up.
+    //
+    // A FUNCTION, not a property: a popout whose body resizes asynchronously reports from the very
+    // change handler that feeds this, and a property binding still holds the PREVIOUS value there.
+    // As a property it left the bulge a size behind every icon switch — the menu drew at full size
+    // over a stub of a background, and the stub stayed until the next switch.
+    function bulge() { return -1; }
     // Re-report while merely hovered, for content that changes under the cursor.
     property bool reportOnHover: false
 
@@ -54,18 +60,20 @@ PopupWindow {
         pop.dismissed();
         if (pop.bar.popout === "") PopoutState.clear(pop.bar.bulgeOwner);
     }
-    // Content that resizes has to re-report, or the bulge keeps the old size.
-    onImplicitHeightChanged: if (pop.shown) pop.report(undefined)
+    // Content that resizes has to re-report, or the bulge keeps the old size. Only where the body
+    // height IS the window height: a popout with its own bulge() derives this from the same layout
+    // it already reports off, so acting here too would report the identical box a second time —
+    // once more with `anim` unset, which restarts the Frame's easing over a bulge the first call
+    // had already landed.
+    onImplicitHeightChanged: if (pop.shown && pop.bulge() < 0) pop.report(undefined)
 
     // `anim` false lands the bulge in the same frame, for a popout that merely resized.
     function report(anim) {
         if (!pop.shown || !pop.widget) return;
-        if (pop.bulgeHeight >= 0) {
-            if (pop.bulgeHeight < 1) return;   // mid-reload: keep the bulge that is up
-            pop.bar.reportPopBox(pop.widget, pop, anim, pop.bulgeHeight);
-        } else {
-            pop.bar.reportPopBox(pop.widget, pop, anim);
-        }
+        const h = pop.bulge();
+        if (h < 0) { pop.bar.reportPopBox(pop.widget, pop, anim); return; }
+        if (h < 1) return;                     // mid-reload: keep the bulge that is up
+        pop.bar.reportPopBox(pop.widget, pop, anim, h);
     }
 
     Item {
