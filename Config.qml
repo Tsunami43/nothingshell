@@ -326,6 +326,16 @@ Singleton {
         return base === undefined ? root.accent : base;
     }
 
+    // --- Derived: ANSI 16 ---
+    // Terminal palette off the same anchors, indexed as a terminal does: 0-7 normal, 8-15 bright.
+    readonly property var ansi: CU.ansi16({
+        background: root.bg, surface: root.surface, surfaceText: root.fg,
+        dim: root.dim, outline: root.outline,
+        primary: root.accent, secondary: root.tertiary,
+        error: root.error, success: root.success, warning: root.warning, info: root.info,
+        light: root.lightMode
+    })
+
     // --- Fonts and shared constants ---
     // Faces are bundled in assets/fonts, so the shell looks the same where none are installed
     // system-wide. The folder is scanned, not listed: dropping a .ttf/.otf in adds a text face.

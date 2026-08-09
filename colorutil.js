@@ -52,9 +52,9 @@ function contrast(a, b) {
 // no-op on pure black, clip near white, and can hand back a lighter grey when asked to
 // darken a near-black. The chosen pole always brackets the target, so a bisection is
 // correct at both ends of the range.
-function tone(c, target) {
-    var o = _obj(c), L = lum(o);
-    if (Math.abs(L - target) < 0.002) return _hex(o);
+function _toneObj(o, target) {
+    var L = lum(o);
+    if (Math.abs(L - target) < 0.002) return o;
     var up = target > L, pole = up ? WHITE : BLACK;
     var lo = 0, hi = 1;
     for (var i = 0; i < 14; i++) {
@@ -62,8 +62,10 @@ function tone(c, target) {
         // Luminance is monotonic in the mix factor: rising toward white, falling toward black.
         if ((lum(_mix(o, pole, m)) > target) === up) hi = m; else lo = m;
     }
-    return _hex(_mix(o, pole, (lo + hi) * 0.5));
+    return _mix(o, pole, (lo + hi) * 0.5);
 }
+
+function tone(c, target) { return _hex(_toneObj(_obj(c), target)); }
 
 // One elevation tier up (n > 0) or down (n < 0). The caller supplies the poles because
 // "up" means toward the text colour in a dark theme -- that is Material's surface tint,
@@ -94,11 +96,13 @@ function _chan(p, q, t) {
     return p;
 }
 
-function _fromHsl(h, s, l, a) {
-    if (s <= 0) return _hex({ r: l, g: l, b: l, a: a });
+function _hslObj(h, s, l, a) {
+    if (s <= 0) return { r: l, g: l, b: l, a: a };
     var q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
-    return _hex({ r: _chan(p, q, h + 1 / 3), g: _chan(p, q, h), b: _chan(p, q, h - 1 / 3), a: a });
+    return { r: _chan(p, q, h + 1 / 3), g: _chan(p, q, h), b: _chan(p, q, h - 1 / 3), a: a };
 }
+
+function _fromHsl(h, s, l, a) { return _hex(_hslObj(h, s, l, a)); }
 
 // Rebuild a colour at a new hue, keeping the source's saturation and lightness feel. This
 // is how success/warning/info are invented for a palette that omits them -- and for every
@@ -108,12 +112,14 @@ function _fromHsl(h, s, l, a) {
 // straight over produces a washed-out pastel that reads as decoration rather than status,
 // and a very dark accent produces something invisible. The band keeps a synthesised status
 // colour legible against every surface tier while still leaning toward the theme.
-function hueAt(c, h, minS, band) {
-    var o = _obj(c), t = _toHsl(o);
+function _hueAtObj(o, h, minS, band) {
+    var t = _toHsl(o);
     var lo = band ? band[0] : 0.42, hi = band ? band[1] : 0.68;
     var l = t.l < lo ? lo : (t.l > hi ? hi : t.l);
-    return _fromHsl(h, Math.max(t.s, minS === undefined ? 0.45 : minS), l, o.a);
+    return _hslObj(h, Math.max(t.s, minS === undefined ? 0.45 : minS), l, o.a);
 }
+
+function hueAt(c, h, minS, band) { return _hex(_hueAtObj(_obj(c), h, minS, band)); }
 
 // Offset a colour's hue by `delta` turns, keeping it in the same saturation/lightness band.
 // Used to lay out a categorical data ramp: rotating off the accent guarantees the slots stay
@@ -132,4 +138,86 @@ function readable(bgC, candA, candB, ratio) {
     var win = a >= b ? candA : candB;
     if (Math.max(a, b) >= (ratio === undefined ? 4.5 : ratio)) return _hex(_obj(win));
     return tone(win, lum(bgC) > 0.4 ? 0.02 : 0.95);
+}
+
+// ------------------------------------------------------------------ ansi --
+// Programs assume an ANSI slot's hue (git paints a deletion with red(1)), so a slot cannot
+// take the theme's accent the way a UI role can. error/success/warning/info go in as-is;
+// magenta and cyan have no role and are synthesised off the accent.
+
+// Nominal slot hues, in turns.
+var _ANSI_HUE = [
+    { name: "red",     h: 0.00 },
+    { name: "yellow",  h: 0.13 },
+    { name: "green",   h: 0.34 },
+    { name: "cyan",    h: 0.50 },
+    { name: "blue",    h: 0.60 },
+    { name: "magenta", h: 0.85 }
+];
+
+function _hueDist(a, b) { var d = Math.abs(a - b) % 1; return d > 0.5 ? 1 - d : d; }
+
+function _nearestHue(h) {
+    var best = _ANSI_HUE[0], bd = 1;
+    for (var i = 0; i < _ANSI_HUE.length; i++) {
+        var d = _hueDist(h, _ANSI_HUE[i].h);
+        if (d < bd) { bd = d; best = _ANSI_HUE[i]; }
+    }
+    return { name: best.name, dist: bd };
+}
+
+// Nearest-hue-wins, not just "close enough": glacier's steel blue secondary is 0.08 turns off
+// cyan but 0.02 off blue, and taking it as cyan left the palette with two blues.
+function _claims(sec, want) {
+    var t = _toHsl(sec);
+    if (t.s < 0.15) return false;
+    var n = _nearestHue(t.h);
+    return n.name === want && n.dist < 0.13;
+}
+
+// One step further from the background; saturation carries it where lightness has no headroom
+// left (mocha's yellow starts at l=0.83, and a 0.88 clamp left the pair 1.09:1 apart).
+function _bright(o, light) {
+    var t = _toHsl(o);
+    var l = Math.min(0.92, Math.max(0.12, t.l + (light ? -0.14 : 0.14)));
+    var s = Math.abs(l - t.l) < 0.06 ? Math.min(1, t.s + 0.18) : Math.min(1, t.s * 1.06);
+    return _hslObj(t.h, s, l, o.a);
+}
+
+// Contrast floor for the synthesised slots: _hueAtObj's band is HSL lightness, not luminance,
+// and a cyan at l=0.46 measures 2.3:1 on near-white where a blue at the same l measures 5:1.
+function _floor(o, bgO, ratio) {
+    if (contrast(bgO, o) >= ratio) return o;
+    var Lb = lum(bgO);
+    var target = Lb > 0.4 ? (Lb + 0.05) / ratio - 0.05 : ratio * (Lb + 0.05) - 0.05;
+    return _toneObj(o, Math.min(1, Math.max(0, target)));
+}
+
+// Palette anchors in (see the call in Config.qml), sixteen slots out: 0-7 normal, 8-15 bright.
+function ansi16(p) {
+    var light = !!p.light;
+    var bg = _obj(p.background), surface = _obj(p.surface), fg = _obj(p.surfaceText);
+    var dim = _obj(p.dim), outline = _obj(p.outline);
+    var accent = _obj(p.primary), sec = _obj(p.secondary);
+
+    // Black is drawn *on* the background, so a light theme takes it from the text colour.
+    var ink   = light ? fg : bg;
+    var paper = light ? surface : fg;
+    var brBlack = light ? _mix(dim, fg, 0.30) : _mix(outline, dim, 0.50);
+    // A dimmer paper, not a second white: at `paper` itself, 7 and 15 come out identical.
+    var white   = _mix(dim, paper, 0.55);
+
+    // As with the semantic roles in Config, one band darker for light themes.
+    var band = light ? [0.28, 0.46] : [0.45, 0.70];
+    var magenta = _claims(sec, "magenta") ? sec : _floor(_hueAtObj(accent, 0.85, 0.45, band), bg, 4.0);
+    var cyan    = _claims(sec, "cyan")    ? sec : _floor(_hueAtObj(accent, 0.50, 0.45, band), bg, 4.0);
+
+    var norm = [ink, _obj(p.error), _obj(p.success), _obj(p.warning),
+                _obj(p.info), magenta, cyan, white];
+    var out = [];
+    for (var i = 0; i < 8; i++) out.push(_hex(norm[i]));
+    out.push(_hex(brBlack));
+    for (var j = 1; j < 7; j++) out.push(_hex(_bright(norm[j], light)));
+    out.push(_hex(paper));
+    return out;
 }
