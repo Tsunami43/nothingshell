@@ -24,6 +24,9 @@ Item {
     width: ListView.view ? ListView.view.width : (parent ? parent.width : 0)
     implicitHeight: 54
 
+    // Below the content: the connect and settings buttons on top of it must get their
+    // own clicks.
+    StateLayer { ovTopRadius: row.topRadius; ovBottomRadius: row.bottomRadius; onTapped: row.tapped() }
     RowLayout {
         anchors.fill: parent
         anchors.leftMargin: 16; anchors.rightMargin: 8; spacing: 12
@@ -57,5 +60,4 @@ Item {
         }
         IconBtn { visible: row.showSettings; icon: "settings"; onClicked: row.settings() }
     }
-    StateLayer { ovTopRadius: row.topRadius; ovBottomRadius: row.bottomRadius; onTapped: row.tapped() }
 }

@@ -1,9 +1,8 @@
 // VPN settings, from both sources the shell knows about:
-//   * NetworkManager profiles (nmcli), which the bar's VPN popout also shows — imported from
-//     .ovpn/.conf files and toggled with `nmcli con up/down`;
-//   * custom providers, arbitrary connect/disconnect commands for anything NM does not manage
-//     (tailscale, warp-cli, a bare wg-quick).
-// Side by side, so one page answers "what VPNs do I have" — which neither half could alone.
+//   * NetworkManager profiles, built from the field schema in services/vpnschema.js or imported
+//     from a config file, and also shown in the bar's VPN popout;
+//   * custom providers, arbitrary connect/disconnect commands for what NM does not manage.
+// Side by side, so one page answers "what VPNs do I have".
 pragma ComponentBehavior: Bound
 
 import QtQuick
@@ -30,13 +29,20 @@ StackView {
                 visible: Net.vpnList.length > 0
                 placeholderIcon: "vpn_lock"
                 placeholderText: "No NetworkManager VPN profiles"
-                model: ScriptModel { values: [...Net.vpnList] }
+                model: ScriptModel { objectProp: "uuid"; values: [...Net.vpnList] }
                 delegate: Item {
                     id: nm
                     required property var modelData
                     required property int index
                     width: ListView.view.width
                     implicitHeight: 56
+                    // Below the content: the button on top of it must get its own clicks.
+                    StateLayer {
+                        ovTopRadius: nmProfiles.rowTop(nm.index)
+                        ovBottomRadius: nmProfiles.rowBottom(nm.index)
+                        onTapped: nm.modelData.active ? Net.vpnDown(nm.modelData.uuid)
+                                                      : Net.vpnUp(nm.modelData.uuid)
+                    }
                     RowLayout {
                         anchors.fill: parent; anchors.leftMargin: 16; anchors.rightMargin: 8; spacing: 12
                         Rectangle {
@@ -69,22 +75,23 @@ StackView {
                             }
                         }
                         IconBtn {
-                            icon: "delete"; tint: Config.danger; iconSize: 18
-                            onClicked: VPN.deleteNm(nm.modelData.name)
+                            icon: "tune"; iconSize: 18; label: "Settings for " + nm.modelData.name
+                            onClicked: stack.push(formPage, { uuid: nm.modelData.uuid,
+                                                              kind: nm.modelData.kind })
                         }
-                    }
-                    StateLayer {
-                        ovTopRadius: nmProfiles.rowTop(nm.index)
-                        ovBottomRadius: nmProfiles.rowBottom(nm.index)
-                        onTapped: nm.modelData.active ? Net.vpnDown(nm.modelData.name)
-                                                      : Net.vpnUp(nm.modelData.name)
                     }
                 }
             }
             NavRow {
-                first: true; last: true
+                first: true; last: false
+                icon: "add"; label: "Add a VPN"
+                status: "IKEv2, OpenVPN, WireGuard"
+                onClicked: stack.push(typePage)
+            }
+            NavRow {
+                first: false; last: true
                 icon: "file_open"; label: "Import a configuration"
-                status: "OpenVPN .ovpn or WireGuard .conf"
+                status: "An .ovpn or WireGuard .conf you already have"
                 onClicked: stack.push(importPage)
             }
 
@@ -111,6 +118,12 @@ StackView {
                     readonly property bool isConnected: prov.selected && VPN.connected
                     width: ListView.view.width
                     implicitHeight: 56
+                    // Below the content: the edit button on top of it must get its own clicks.
+                    StateLayer {
+                        ovTopRadius: providers.rowTop(prov.index)
+                        ovBottomRadius: providers.rowBottom(prov.index)
+                        onTapped: VPN.setActive(prov.index)
+                    }
                     RowLayout {
                         anchors.fill: parent; anchors.leftMargin: 16; anchors.rightMargin: 8; spacing: 12
                         Rectangle {
@@ -134,12 +147,10 @@ StackView {
                                 font.family: Config.textFont; font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight
                             }
                         }
-                        IconBtn { icon: "edit"; onClicked: stack.push(editPage, { editIndex: prov.index }) }
-                    }
-                    StateLayer {
-                        ovTopRadius: providers.rowTop(prov.index)
-                        ovBottomRadius: providers.rowBottom(prov.index)
-                        onTapped: VPN.setActive(prov.index)
+                        IconBtn {
+                            icon: "edit"; label: "Edit " + prov.modelData.name
+                            onClicked: stack.push(editPage, { editIndex: prov.index })
+                        }
                     }
                 }
             }
@@ -152,108 +163,317 @@ StackView {
         }
     }
 
-    // --- Import an NM configuration ---
+    // --- Pick a VPN technology ---
     Component {
-        id: importPage
+        id: typePage
         PageBase {
-            id: imp
-            property string path: ""
-            title: "Import a VPN configuration"
+            id: tp
+            title: "Add a VPN"
             isSubPage: true
             onBack: stack.pop()
 
             Text {
                 Layout.fillWidth: true
                 Layout.leftMargin: 6
-                text: "Hands the file to `nmcli connection import`. A .conf is treated as WireGuard, "
-                      + "anything else as OpenVPN. The profile then appears in the list and in the bar."
+                text: "The profile is created in NetworkManager, so it also shows up in the bar and "
+                      + "survives a restart of the shell. Only plugins installed on this machine "
+                      + "can be configured."
                 color: Config.dim; font.family: Config.textFont; font.pixelSize: 11
                 wrapMode: Text.WordWrap
             }
-            TextRow {
+            ItemList {
+                id: typeList
+                Layout.fillHeight: true
+                model: ScriptModel { objectProp: "id"; values: [...VPN.types] }
+                delegate: Item {
+                    id: ty
+                    required property var modelData
+                    required property int index
+                    width: ListView.view.width
+                    implicitHeight: 62
+                    opacity: ty.modelData.available ? 1 : 0.45
+                    StateLayer {
+                        enabled: ty.modelData.available
+                        ovTopRadius: typeList.rowTop(ty.index)
+                        ovBottomRadius: typeList.rowBottom(ty.index)
+                        onTapped: ty.modelData.importOnly
+                            ? stack.push(importPage, { typeId: ty.modelData.id })
+                            : stack.push(formPage, { typeId: ty.modelData.id })
+                    }
+                    RowLayout {
+                        anchors.fill: parent; anchors.leftMargin: 16; anchors.rightMargin: 14; spacing: 12
+                        MatIcon { text: ty.modelData.icon; color: Config.fg; font.pixelSize: 20 }
+                        ColumnLayout {
+                            Layout.fillWidth: true; spacing: 1
+                            Text {
+                                text: ty.modelData.label; color: Config.fg
+                                font.family: Config.textFont; font.pixelSize: 13; font.bold: true
+                                Layout.fillWidth: true; elide: Text.ElideRight
+                            }
+                            Text {
+                                text: ty.modelData.available ? ty.modelData.subtext
+                                    : "Plugin not installed — needs " + ty.modelData.package
+                                color: ty.modelData.available ? Config.dim : Config.warning
+                                font.family: Config.textFont; font.pixelSize: 11
+                                Layout.fillWidth: true; elide: Text.ElideRight
+                            }
+                        }
+                        MatIcon {
+                            text: ty.modelData.available ? "chevron_right" : "block"
+                            color: Config.dim; font.pixelSize: 20
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- Import an existing configuration file ---
+    Component {
+        id: importPage
+        PageBase {
+            id: imp
+            // Set when reached from a type; empty means the generic entry, where the extension decides.
+            property string typeId: ""
+            property string path: ""
+            readonly property var type: imp.typeId ? VPN.typeById(imp.typeId) : null
+            title: imp.type ? "Import " + imp.type.label : "Import a VPN configuration"
+            isSubPage: true
+            onBack: stack.pop()
+
+            Text {
+                Layout.fillWidth: true
+                Layout.leftMargin: 6
+                text: "Hands the file to `nmcli connection import`, which reads the whole thing — "
+                      + "keys, peers and routes included. The profile then appears in the list and "
+                      + "in the bar."
+                color: Config.dim; font.family: Config.textFont; font.pixelSize: 11
+                wrapMode: Text.WordWrap
+            }
+            FilePickerRow {
                 first: true; last: true
-                label: "File"
+                label: "Configuration file"
+                dialogTitle: "Choose a VPN configuration"
+                accept: imp.type?.importAccept ?? [".ovpn", ".conf"]
                 value: imp.path
-                placeholder: "/home/you/Downloads/office.ovpn"
-                live: true
-                onEdited: t => imp.path = t
+                onEdited: p => imp.path = p
             }
             ButtonRow {
                 first: true; last: true
                 icon: "download"; label: "Import"
                 enabled: imp.path.length > 0
-                onClicked: { VPN.importConfig(imp.path); stack.pop(); }
+                onClicked: { VPN.importConfig(imp.path, imp.type?.importType ?? ""); stack.pop(); }
             }
         }
     }
 
-    // --- Add / edit provider ---
+    // --- Create or edit a NetworkManager profile ---
+    Component {
+        id: formPage
+        PageBase {
+            id: form
+            property string uuid: ""            // empty means "creating"
+            property string typeId: ""
+            property string kind: "vpn"         // nmcli connection type, for the wireguard case
+            property string name: ""
+            property var values: ({})
+            property var existing: ({})         // the vpn.data an edit was loaded from
+            property bool showAdvanced: false
+            property bool armed: false
+            readonly property var type: form.typeId ? VPN.typeById(form.typeId) : null
+            readonly property var missing: form.type ? VPN.missingRequired(form.type, form.values) : []
+            // Which fields are on screen, in order; recomputed whenever a value changes.
+            readonly property var resolved: form.type ? VPN.resolveValues(form.type, form.values) : ({})
+            readonly property var shown: (form.type?.fields ?? [])
+                .filter(f => VPN.fieldVisible(f, form.resolved, form.showAdvanced))
+                .map(f => f.key)
+
+            title: form.uuid ? (form.name || "Edit VPN") : ("Add " + (form.type?.label ?? "VPN"))
+            isSubPage: true
+            onBack: stack.pop()
+
+            // A `var` map fires no change signal when mutated in place, so every write replaces it.
+            function setValue(k, v) {
+                const o = Object.assign({}, form.values);
+                o[k] = v;
+                form.values = o;
+            }
+
+            Component.onCompleted: if (form.uuid) VPN.loadProfile(form.uuid)
+            Connections {
+                target: VPN
+                function onLoaded(profile) {
+                    if (profile.uuid !== form.uuid) return;
+                    form.name = profile.name;
+                    form.typeId = profile.typeId;
+                    form.existing = profile.values;
+                    form.values = profile.values;
+                }
+                // pop(null): creating came through the type picker and has two pages to unwind.
+                function onSaved(uuid) { stack.pop(null); }   // qmllint disable signal-handler-parameters
+            }
+
+            TextRow {
+                first: true; last: true
+                label: "Name"
+                placeholder: "Office"
+                value: form.name
+                onEdited: t => form.name = t
+            }
+
+            // No schema for this plugin, or a native WireGuard profile: rename and delete only.
+            Text {
+                visible: form.uuid !== "" && !form.type
+                Layout.fillWidth: true
+                Layout.leftMargin: 6
+                text: form.kind === "wireguard"
+                    ? "WireGuard profiles carry their keys and peers in the profile itself — edit "
+                      + "the .conf and import it again to change them."
+                    : "This profile was made by something else and uses settings this page does not "
+                      + "know. Its name can be changed here; the rest, only in nm-connection-editor."
+                color: Config.dim; font.family: Config.textFont; font.pixelSize: 11
+                wrapMode: Text.WordWrap
+            }
+
+            Repeater {
+                model: form.type?.fields ?? []
+                delegate: FieldRow {
+                    id: fieldRow
+                    required property var modelData
+                    field: modelData
+                    // Visibility, not a model change, or a row would lose what was being typed in it.
+                    visible: form.shown.indexOf(modelData.key) >= 0
+                    value: form.resolved[modelData.key] ?? ""
+                    onEdited: v => form.setValue(modelData.key, v)
+                }
+            }
+
+            ToggleRow {
+                visible: (form.type?.fields ?? []).some(f => f.advanced)
+                text: "Advanced options"
+                subtext: "Ports, algorithm proposals, traffic selectors"
+                checked: form.showAdvanced
+                onToggled: form.showAdvanced = !form.showAdvanced
+            }
+
+            InfoRow {
+                visible: VPN.lastError !== ""
+                icon: "error"; label: "nmcli"; value: VPN.lastError
+            }
+
+            ButtonRow {
+                first: true; last: true
+                icon: "check"
+                label: form.uuid ? "Save" : "Add VPN"
+                subtext: form.name === "" ? "Give it a name first"
+                       : form.missing.length > 0 ? "Still needed: " + form.missing.join(", ") : ""
+                busy: VPN.saving
+                enabled: form.name !== "" && (!form.type || form.missing.length === 0)
+                onClicked: {
+                    // Nothing to write but the name; an empty dict leaves vpn.data alone.
+                    const built = form.type
+                        ? VPN.buildProfile(form.type, form.values, form.existing)
+                        : { data: ({}), secrets: ({}), cleared: [] };
+                    VPN.saveProfile({ uuid: form.uuid, name: form.name,
+                                      service: form.type?.service ?? "",
+                                      data: built.data, secrets: built.secrets,
+                                      cleared: built.cleared });
+                }
+            }
+
+            // Behind opening the profile, the way "Forget this network" is, plus an arming tap.
+            ButtonRow {
+                visible: form.uuid !== ""
+                first: true; last: true
+                destructive: true
+                icon: "delete"
+                label: form.armed ? "Tap again to delete" : "Delete this profile"
+                subtext: form.armed ? "" : "Removes it from NetworkManager"
+                onClicked: {
+                    if (!form.armed) { form.armed = true; armReset.restart(); return; }
+                    Net.deleteProfile(form.uuid);
+                    stack.pop();
+                }
+            }
+            Timer { id: armReset; interval: 4000; onTriggered: form.armed = false }
+        }
+    }
+
+    // --- Add / edit a custom provider ---
     Component {
         id: editPage
         PageBase {
             id: ep
             property int editIndex: -1
+            property string name: ""
+            property string iface: ""
+            property string connectCmd: ""
+            property string disconnectCmd: ""
             readonly property var existing: editIndex >= 0 ? VPN.providers[editIndex] : null
             title: editIndex >= 0 ? "Edit provider" : "Add provider"
             isSubPage: true
             onBack: stack.pop()
 
-            component Field: Rectangle {
-                id: field
-                property alias text: ti.text
-                property string placeholder: ""
-                property bool mono: false
-                Layout.fillWidth: true
-                implicitHeight: 48; radius: 10; color: Config.container
-                TextInput {
-                    id: ti
-                    anchors.fill: parent; anchors.leftMargin: 16; anchors.rightMargin: 16
-                    verticalAlignment: TextInput.AlignVCenter; clip: true
-                    color: Config.fg; font.family: field.mono ? "monospace" : Config.textFont; font.pixelSize: 13
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter; visible: ti.text === ""
-                        text: field.placeholder; color: Config.dim
-                        font.family: Config.textFont; font.pixelSize: 13
-                    }
-                }
+            Component.onCompleted: {
+                if (!ep.existing) return;
+                ep.name = ep.existing.name ?? "";
+                ep.iface = ep.existing.iface ?? "";
+                ep.connectCmd = ep.existing.connectCmd ?? "";
+                ep.disconnectCmd = ep.existing.disconnectCmd ?? "";
             }
 
-            ColumnLayout {
+            Text {
                 Layout.fillWidth: true
-                spacing: 8
-                Field { id: nameF; placeholder: "Display name (e.g. Home WireGuard)"; text: ep.existing?.name ?? "" }
-                Field { id: ifaceF; placeholder: "Interface (e.g. wg0, tailscale0)"; text: ep.existing?.iface ?? "" }
-                Field { id: connF; mono: true; placeholder: "Connect command (e.g. wg-quick up wg0)"; text: ep.existing?.connectCmd ?? "" }
-                Field { id: discF; mono: true; placeholder: "Disconnect command (e.g. wg-quick down wg0)"; text: ep.existing?.disconnectCmd ?? "" }
+                Layout.leftMargin: 6
+                text: "For anything NetworkManager does not manage — tailscale, warp-cli, a bare "
+                      + "wg-quick. The commands run through `sh -c`; the interface is how the shell "
+                      + "tells whether it is up."
+                color: Config.dim; font.family: Config.textFont; font.pixelSize: 11
+                wrapMode: Text.WordWrap
+            }
 
-                RowLayout {
-                    Layout.fillWidth: true; Layout.topMargin: 8; spacing: 8
-                    Rectangle {
-                        visible: ep.editIndex >= 0
-                        implicitWidth: 46; implicitHeight: 46; radius: 14; color: Config.container
-                        MatIcon { anchors.centerIn: parent; text: "delete"; color: Config.error; font.pixelSize: 20 }
-                        StateLayer { ovRadius: 14; onTapped: { VPN.deleteProvider(ep.editIndex); stack.pop(); } }
-                    }
-                    Rectangle {
-                        Layout.fillWidth: true; implicitHeight: 46; radius: 14
-                        color: nameF.text.length > 0 ? Config.accent : Config.container
-                        Text {
-                            anchors.centerIn: parent; text: ep.editIndex >= 0 ? "Save" : "Add provider"
-                            color: nameF.text.length > 0 ? Config.accentText : Config.dim
-                            font.family: Config.textFont; font.pixelSize: 14; font.bold: true
-                        }
-                        StateLayer {
-                            ovRadius: 14
-                            onTapped: {
-                                if (nameF.text.length === 0) return;
-                                const p = { name: nameF.text, iface: ifaceF.text, connectCmd: connF.text, disconnectCmd: discF.text };
-                                if (ep.editIndex >= 0) VPN.updateProvider(ep.editIndex, p);
-                                else VPN.addProvider(p);
-                                stack.pop();
-                            }
-                        }
-                    }
+            TextRow {
+                first: true; last: false
+                label: "Name"; placeholder: "Home WireGuard"
+                value: ep.name; onEdited: t => ep.name = t
+            }
+            TextRow {
+                first: false; last: true
+                label: "Interface"; placeholder: "wg0, tailscale0"
+                subtext: "Checked under /sys/class/net to report the connection state"
+                value: ep.iface; onEdited: t => ep.iface = t
+            }
+            TextRow {
+                first: true; last: false
+                label: "Connect command"; placeholder: "wg-quick up wg0"
+                value: ep.connectCmd; onEdited: t => ep.connectCmd = t
+            }
+            TextRow {
+                first: false; last: true
+                label: "Disconnect command"; placeholder: "wg-quick down wg0"
+                value: ep.disconnectCmd; onEdited: t => ep.disconnectCmd = t
+            }
+
+            ButtonRow {
+                first: true; last: true
+                icon: "check"
+                label: ep.editIndex >= 0 ? "Save" : "Add provider"
+                subtext: ep.name === "" ? "Give it a name first" : ""
+                enabled: ep.name !== ""
+                onClicked: {
+                    const p = { name: ep.name, iface: ep.iface,
+                                connectCmd: ep.connectCmd, disconnectCmd: ep.disconnectCmd };
+                    if (ep.editIndex >= 0) VPN.updateProvider(ep.editIndex, p);
+                    else VPN.addProvider(p);
+                    stack.pop();
                 }
+            }
+            ButtonRow {
+                visible: ep.editIndex >= 0
+                first: true; last: true
+                destructive: true
+                icon: "delete"; label: "Delete this provider"
+                onClicked: { VPN.deleteProvider(ep.editIndex); stack.pop(); }
             }
         }
     }

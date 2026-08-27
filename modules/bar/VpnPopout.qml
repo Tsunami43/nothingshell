@@ -31,7 +31,7 @@ BarPopout {
         }
         Repeater {
             model: ScriptModel {
-                objectProp: "name"
+                objectProp: "uuid"
                 values: [...Net.vpnList].sort((a, b) => (b.active - a.active) || a.name.localeCompare(b.name))
             }
             // No per-row entrance animation — see the Wi-Fi list.
@@ -62,7 +62,7 @@ BarPopout {
                     }
                     StateLayer {
                         ovRadius: 15; tint: vpnItem.modelData.active ? Config.accentText : Config.fg
-                        onTapped: vpnItem.modelData.active ? Net.vpnDown(vpnItem.modelData.name) : Net.vpnUp(vpnItem.modelData.name)
+                        onTapped: vpnItem.modelData.active ? Net.vpnDown(vpnItem.modelData.uuid) : Net.vpnUp(vpnItem.modelData.uuid)
                     }
                 }
             }

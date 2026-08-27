@@ -328,7 +328,7 @@ Singleton {
 
     Process {
         id: conProc
-        command: ["nmcli", "-t", "-f", "NAME,TYPE,DEVICE,ACTIVE", "con", "show"]
+        command: ["nmcli", "-t", "-f", "NAME,UUID,TYPE,DEVICE,ACTIVE", "con", "show"]
         stdout: StdioCollector {
             id: conOut
             onStreamFinished: {
@@ -336,9 +336,10 @@ Singleton {
                 const list = [], saved = [], wired = [];
                 for (const l of conOut.text.trim().split("\n").filter(Boolean)) {
                     const f = root.splitEsc(l);
-                    const name = f[0], type = f[1] || "", dev = f[2] || "", isActive = f[3] === "yes";
+                    const name = f[0], uuid = f[1] || "", type = f[2] || "", dev = f[3] || "", isActive = f[4] === "yes";
                     if (type === "vpn" || type === "wireguard") {
-                        list.push({ name: name, active: isActive, device: dev });
+                        // kind: a wireguard profile has no vpn.data, so nothing to edit.
+                        list.push({ name: name, uuid: uuid, active: isActive, device: dev, kind: type });
                         if (!first) first = name;
                         if (isActive) { active = name; vpnDev = dev; }
                     } else if (type === "802-11-wireless") {
@@ -380,17 +381,35 @@ Singleton {
         repeat: true; triggeredOnStart: true
         onTriggered: conProc.running = true
     }
-    function vpnUp(name) {
-        root.vpnList = root.vpnList.map(v => ({ name: v.name, active: v.name === name }));
-        root.vpnActiveName = name; root.vpnActive = true;
-        Quickshell.execDetached(["nmcli", "con", "up", name]); conRefresh.restart();
+    // By UUID, not name: two profiles may share one, and a name shaped like a UUID resolves
+    // differently between `con up <name>` and `con delete id <name>`. Entries are merged rather
+    // than rebuilt, or `device` is dropped and the row's "Connected via …" blanks for a frame.
+    function vpnUp(uuid) {
+        if (!uuid) return;
+        root.vpnList = root.vpnList.map(v => Object.assign({}, v, { active: v.uuid === uuid }));
+        root.vpnActiveName = root.vpnList.find(v => v.uuid === uuid)?.name ?? "";
+        root.vpnActive = true;
+        Quickshell.execDetached(["nmcli", "con", "up", "uuid", uuid]); conRefresh.restart();
     }
-    function vpnDown(name) {
-        root.vpnList = root.vpnList.map(v => ({ name: v.name, active: v.name === name ? false : v.active }));
+    function vpnDown(uuid) {
+        if (!uuid) return;
+        root.vpnList = root.vpnList.map(v => v.uuid === uuid ? Object.assign({}, v, { active: false }) : v);
         root.vpnActiveName = root.vpnList.find(v => v.active)?.name ?? "";
         root.vpnActive = root.vpnActiveName !== "";
-        Quickshell.execDetached(["nmcli", "con", "down", name]); conRefresh.restart();
+        Quickshell.execDetached(["nmcli", "con", "down", "uuid", uuid]); conRefresh.restart();
     }
+    // Here rather than in VPN.qml, which can reach neither the list nor conRefresh: without a
+    // refresh the row lingers until the poll comes round, and on battery saver netPollMs is 0.
+    function deleteProfile(uuid) {
+        if (!uuid) return;
+        root.vpnList = root.vpnList.filter(v => v.uuid !== uuid);
+        root.vpnActiveName = root.vpnList.find(v => v.active)?.name ?? "";
+        root.vpnActive = root.vpnActiveName !== "";
+        Quickshell.execDetached(["nmcli", "con", "delete", "uuid", uuid]);
+        conRefresh.restart();
+    }
+    // The refresh timer is private to this file; VPN.qml needs to kick it after writing a profile.
+    function refreshConnections() { conRefresh.restart(); }
     Timer { id: conRefresh; interval: 1200; onTriggered: conProc.running = true }
 
     // Live change stream (debounced).
