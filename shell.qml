@@ -137,6 +137,8 @@ ShellRoot {
     LockScreen {}
     Variants { model: Quickshell.screens; Launcher {} }
     Variants { model: Quickshell.screens; CapturePanel {} }
+    // The still a region pick is made over (services/Capture.qml).
+    Variants { model: Quickshell.screens; FreezeFrame {} }
     // Session/power lives in the bar's own popout (modules/Bar.qml), not a separate window.
     Settings {}
 

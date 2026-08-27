@@ -121,8 +121,12 @@ Singleton {
         root.settleCb = cb;
         root.hidingForCapture = true;
         Shell.captureVisible = false;
-        PopoutState.setBox(0, 0, 0, 0, "capture", false, 0.5, 1.0);
-        PopoutState.clear("capture");
+        // Owner-guarded: that bulge is the dashboard's (or a bar popout's) background, and taking
+        // the slot from them put bare cards over the wallpaper in the shot.
+        if (PopoutState.owner === "capture") {
+            PopoutState.setBox(0, 0, 0, 0, "capture", false, 0.5, 1.0);
+            PopoutState.clear("capture");
+        }
         settleTimer.interval = delayMs;
         settleTimer.restart();
         return true;
@@ -145,12 +149,103 @@ Singleton {
         // Hand `busy` back if the settle slot is taken, or the shot key would be dead until restart.
         if (!root.hideThenRun(() => {
             if (src !== "region") { root.grab(null); return; }
-            root.pickRegion(r => {
-                if (r) root.grab(r);
-                else root.busy = false;
-            });
+            // No cropper, no still to crop from — then pick over the live desktop.
+            if (root.hasMagick) root.freezeThenPick();
+            else root.pickRegion(r => { if (r) root.grab(r); else root.busy = false; });
         }, src === "region" ? 60 : 150))
             root.busy = false;
+    }
+
+    // --- Freezing the screen for a region pick ---
+    // slurp takes the pointer as it maps, so anything drawn on hover (a tooltip, a menu, the
+    // dashboard) is gone before grim runs. Snap the screen first, hold the still on top while the
+    // rectangle is picked, and crop the pick out of it.
+    property string freezePath: ""     // a fresh path per capture; "" when there is no still
+    property bool freezeShown: false   // modules/FreezeFrame.qml paints while this is set
+    property var freezeMon: null       // hyprctl geometry of the output the still covers
+    property bool hasMagick: false
+    Process {
+        id: magickProbe
+        running: true
+        command: ["sh", "-c", "command -v magick >/dev/null"]
+        onExited: code => root.hasMagick = code === 0
+    }
+
+    function freezeThenPick() {
+        root.freezeMon = Hyprland.focusedMonitor?.lastIpcObject ?? null;
+        root.freezePath = Paths.runtimeDir + "/nothingshell-freeze-" + root.stamp() + ".png";
+        const args = ["grim"];
+        if (Config.shotCursor) args.push("-c");
+        if (root.freezeMon?.name) args.push("-o", root.freezeMon.name);
+        args.push(root.freezePath);
+        freezeProc.command = args;
+        freezeProc.running = true;
+    }
+    Process {
+        id: freezeProc
+        onExited: code => {
+            root.hidingForCapture = false;
+            // No still — pick over the live desktop rather than drop the capture.
+            if (code !== 0) {
+                root.freezePath = "";
+                root.pickRegion(r => { if (r) root.grab(r); else root.busy = false; });
+                return;
+            }
+            root.freezeShown = true;
+            freezeSettle.restart();
+        }
+    }
+    // slurp must map ABOVE the still: both are overlay surfaces, so the last one committed wins.
+    Timer {
+        id: freezeSettle
+        interval: 100
+        onTriggered: root.pickRegion(r => {
+            if (r) root.cropFreeze(r);
+            else { root.clearFreeze(); root.busy = false; }
+        })
+    }
+
+    // slurp answers in logical coordinates; the still is monitor pixels.
+    function cropFreeze(region) {
+        root.freezeShown = false;
+        // Off this output, or a rotated one: not in the still, so fall back to the live shot.
+        if (!root.fitsFreeze(region)) { root.clearFreeze(); root.grab(region); return; }
+        const m = root.freezeMon, s = m?.scale || 1;
+        const x = Math.round((region.x - (m?.x ?? 0)) * s);
+        const y = Math.round((region.y - (m?.y ?? 0)) * s);
+        const w = Math.max(1, Math.round(region.w * s));
+        const h = Math.max(1, Math.round(region.h * s));
+        const dir = Config.shotSave ? root.absDir(root.shotTarget) : "/tmp";
+        root.shotFile = dir + "/shot_" + root.stamp() + ".png";
+        root.mkdirThen(dir, () => {
+            cropProc.command = ["magick", root.freezePath,
+                                "-crop", w + "x" + h + "+" + x + "+" + y, "+repage", root.shotFile];
+            cropProc.running = true;
+        });
+    }
+    Process {
+        id: cropProc
+        stderr: StdioCollector { id: cropErr }
+        onExited: code => {
+            root.clearFreeze();
+            root.busy = false;
+            if (code !== 0) { root.fail("Screenshot failed", cropErr.text.trim() || "magick exited " + code); return; }
+            root.lastFile = root.shotFile;
+            root.shotDone();
+        }
+    }
+    function fitsFreeze(r) {
+        const m = root.freezeMon;
+        if (!m || m.transform) return false;
+        const s = m.scale || 1;
+        return r.x >= m.x - 0.5 && r.y >= m.y - 0.5
+            && r.x + r.w <= m.x + m.width / s + 0.5 && r.y + r.h <= m.y + m.height / s + 0.5;
+    }
+    function clearFreeze() {
+        root.freezeShown = false;
+        root.freezeMon = null;
+        if (root.freezePath) Quickshell.execDetached(["rm", "-f", root.freezePath]);
+        root.freezePath = "";
     }
 
     property string shotFile: ""
@@ -172,18 +267,22 @@ Singleton {
             root.busy = false;
             if (code !== 0) { root.fail("Screenshot failed", grimErr.text.trim() || "grim exited " + code); return; }
             root.lastFile = root.shotFile;
-            // The path goes in as $1 and is never interpolated into the script; a shell is only
-            // needed for the stdin redirect (same idiom as Wallpaper.qml).
-            if (Config.shotCopy)
-                Quickshell.execDetached(["sh", "-c",
-                    'wl-copy -t image/png < "$1"' + (Config.shotSave ? "" : '; rm -f "$1"'), "sh", root.shotFile]);
-            // image-path (not -i, which is the app icon) is what Notifs exposes as `image`, so the
-            // shell's own toast renders it as a thumbnail.
-            Quickshell.execDetached(["notify-send", "-a", "Capture", "-t", "4000",
-                "-h", "string:image-path:" + root.shotFile,
-                Config.shotSave ? "Screenshot saved" : "Screenshot copied",
-                Config.shotSave ? root.shotFile.split("/").pop() : ""]);
+            root.shotDone();
         }
+    }
+    // Both paths land here: grim wrote the file, or magick cut it out of the still.
+    function shotDone() {
+        // The path goes in as $1 and is never interpolated into the script; a shell is only
+        // needed for the stdin redirect (same idiom as Wallpaper.qml).
+        if (Config.shotCopy)
+            Quickshell.execDetached(["sh", "-c",
+                'wl-copy -t image/png < "$1"' + (Config.shotSave ? "" : '; rm -f "$1"'), "sh", root.shotFile]);
+        // image-path (not -i, which is the app icon) is what Notifs exposes as `image`, so the
+        // shell's own toast renders it as a thumbnail.
+        Quickshell.execDetached(["notify-send", "-a", "Capture", "-t", "4000",
+            "-h", "string:image-path:" + root.shotFile,
+            Config.shotSave ? "Screenshot saved" : "Screenshot copied",
+            Config.shotSave ? root.shotFile.split("/").pop() : ""]);
     }
 
     // --- Recording (gpu-screen-recorder) ---

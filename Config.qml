@@ -155,7 +155,7 @@ Singleton {
             property string recDir: ""
             property bool shotCopy: true
             property bool shotSave: true
-            property bool shotCursor: false
+            property bool shotCursor: true
             property string shotDir: ""
         }
     }
