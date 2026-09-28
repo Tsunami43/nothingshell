@@ -389,7 +389,28 @@ Singleton {
         root.vpnList = root.vpnList.map(v => Object.assign({}, v, { active: v.uuid === uuid }));
         root.vpnActiveName = root.vpnList.find(v => v.uuid === uuid)?.name ?? "";
         root.vpnActive = true;
-        Quickshell.execDetached(["nmcli", "con", "up", "uuid", uuid]); conRefresh.restart();
+        vpnUpProc.pendingName = root.vpnActiveName;
+        vpnUpProc.command = ["nmcli", "con", "up", "uuid", uuid];
+        vpnUpProc.running = true;
+        conRefresh.restart();
+    }
+    // Not fire-and-forget: a VPN that refuses to come up says why, and nmcli is the only one who
+    // hears it — a missing password, a gateway that never answers, or strongSwan turning down a
+    // second tunnel because it only ever runs one.
+    Process {
+        id: vpnUpProc
+        property string pendingName: ""
+        stdout: StdioCollector { id: vpnUpOut }
+        stderr: StdioCollector { id: vpnUpErr }
+        onExited: code => {   // qmllint disable signal-handler-parameters
+            conRefresh.restart();
+            if (code === 0) return;
+            const lines = (vpnUpOut.text + vpnUpErr.text).split("\n").map(l => l.trim()).filter(Boolean);
+            const msg = (lines.find(l => l.startsWith("Error:")) ?? lines[0] ?? "nmcli failed")
+                .replace(/^Error:\s*/, "").replace(/^Connection activation failed:\s*/, "");
+            Quickshell.execDetached(["notify-send", "-u", "critical", "-a", "VPN",
+                                     "Could not connect to " + vpnUpProc.pendingName, msg]);
+        }
     }
     function vpnDown(uuid) {
         if (!uuid) return;

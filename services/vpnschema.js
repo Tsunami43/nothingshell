@@ -55,10 +55,10 @@ const STRONGSWAN = {
           dialogTitle: "Choose a private key",
           when: { key: "cert-source", in: ["file"] } },
 
-        { key: "user", kind: "text", label: "Username",
+        { key: "user", kind: "text", label: "Username", required: true,
           help: "The EAP identity presented to the server",
           when: { key: "method", in: ["eap"] } },
-        { key: "password", kind: "password", label: "Password", secret: true,
+        { key: "password", kind: "password", label: "Password", secret: true, required: true,
           help: "At least 20 characters for a pre-shared key",
           when: { key: "method", in: ["eap", "psk"] } },
         { key: "local-identity", kind: "text", label: "Local identity",
@@ -126,9 +126,9 @@ const OPENVPN = {
         { key: "cert-pass", kind: "password", label: "Private key password", secret: true,
           when: { key: "connection-type", in: ["tls", "password-tls"] } },
 
-        { key: "username", kind: "text", label: "Username",
+        { key: "username", kind: "text", label: "Username", required: true,
           when: { key: "connection-type", in: ["password", "password-tls"] } },
-        { key: "password", kind: "password", label: "Password", secret: true,
+        { key: "password", kind: "password", label: "Password", secret: true, required: true,
           when: { key: "connection-type", in: ["password", "password-tls"] } },
 
         { key: "static-key", kind: "file", label: "Static key", accept: [".key", ".txt"],
@@ -209,7 +209,7 @@ const L2TP = {
         { key: "user", kind: "text", label: "Username", required: true,
           help: "On SoftEther, user@hub when the account is not on the default hub",
           when: { key: "user-auth-type", in: ["password"] } },
-        { key: "password", kind: "password", label: "Password", secret: true,
+        { key: "password", kind: "password", label: "Password", secret: true, required: true,
           help: "The account password, not the IPsec shared key",
           when: { key: "user-auth-type", in: ["password"] } },
         { key: "user-ca", kind: "file", label: "CA certificate", accept: [".pem", ".crt", ".cer"],
@@ -235,7 +235,7 @@ const L2TP = {
               { value: "tls", label: "Certificate" }
           ],
           when: { key: "ipsec-enabled", in: ["yes"] } },
-        { key: "ipsec-psk", kind: "password", label: "IPsec pre-shared key", secret: true,
+        { key: "ipsec-psk", kind: "password", label: "IPsec pre-shared key", secret: true, required: true,
           help: "SoftEther calls this the IPsec secret; its default is often \"vpn\"",
           when: { key: "machine-auth-type", in: ["psk"] } },
         { key: "machine-ca", kind: "file", label: "IPsec CA certificate",
@@ -390,12 +390,17 @@ function build(type, rawValues, existing) {
 }
 
 // Required fields still empty: the submit button's gate, and its subtext when disabled.
-function missingRequired(type, rawValues) {
+// A secret already held by the profile counts as filled — an edit leaves every password box blank
+// on purpose, and demanding it be retyped to change an unrelated field would be absurd.
+function missingRequired(type, rawValues, existing) {
     const values = resolve(type, rawValues);
+    const prev = existing ?? {};
     const out = [];
     for (const f of (type.fields ?? [])) {
         if (!f.required || !clauseHolds(f.when, values)) continue;
-        if (("" + (values[f.key] ?? "")).trim() === "") out.push(f.label);
+        if (("" + (values[f.key] ?? "")).trim() !== "") continue;
+        if (f.secret && prev[f.key + "-flags"] !== undefined) continue;
+        out.push(f.label);
     }
     return out;
 }

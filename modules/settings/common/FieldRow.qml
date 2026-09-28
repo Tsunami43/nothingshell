@@ -29,7 +29,10 @@ Loader {
             placeholder: fr.field.placeholder ?? ""
             echoPassword: fr.field.kind === "password"
             value: "" + (fr.value ?? "")
-            // Never `live`: a per-keystroke value would rebuild the form under the cursor.
+            // Live, so a value is never lost by tapping something that does not take focus.
+            // Safe here because no text field gates another field's visibility, and TextRow only
+            // writes back to the input while it is unfocused.
+            live: true
             onEdited: t => fr.edited(fr.field.kind === "int" ? t.replace(/\D/g, "") : t)
         }
     }

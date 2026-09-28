@@ -60,6 +60,9 @@ ConnectedRect {
     StateLayer {
         tint: row.tint
         enabled: !row.busy
-        onTapped: row.clicked()
+        // Take focus first. A TextRow commits on focus loss, and a MouseArea does not steal focus
+        // on its own, so the last field typed into would still be holding an uncommitted value
+        // when this row acts on it.
+        onTapped: { row.forceActiveFocus(); row.clicked(); }
     }
 }

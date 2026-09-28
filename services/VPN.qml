@@ -46,7 +46,7 @@ Singleton {
     function typeById(id) { return Schema.byId(id); }
     function resolveValues(type, values) { return Schema.resolve(type, values); }
     function fieldVisible(f, values, showAdvanced) { return Schema.fieldVisible(f, values, showAdvanced); }
-    function missingRequired(type, values) { return Schema.missingRequired(type, values); }
+    function missingRequired(type, values, existing) { return Schema.missingRequired(type, values, existing); }
 
     Process {
         id: pluginScan

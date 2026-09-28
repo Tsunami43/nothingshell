@@ -281,7 +281,7 @@ StackView {
             property bool showAdvanced: false
             property bool armed: false
             readonly property var type: form.typeId ? VPN.typeById(form.typeId) : null
-            readonly property var missing: form.type ? VPN.missingRequired(form.type, form.values) : []
+            readonly property var missing: form.type ? VPN.missingRequired(form.type, form.values, form.existing) : []
             // Which fields are on screen, in order; recomputed whenever a value changes.
             readonly property var resolved: form.type ? VPN.resolveValues(form.type, form.values) : ({})
             readonly property var shown: (form.type?.fields ?? [])
