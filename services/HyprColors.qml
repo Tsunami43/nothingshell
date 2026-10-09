@@ -1,7 +1,7 @@
 pragma Singleton
 
 // Pushes the shell's palette into Hyprland: window/group borders and the compositor's
-// own background colour follow the active theme. Applied with `hyprctl keyword` and nothing
+// own background colour follow the active theme. Applied live through HyprCtl and nothing
 // else — whatever colours your own config sets stay in the file untouched, and the
 // `configreloaded` event below re-applies the live theme on top of them.
 import QtQuick
@@ -35,20 +35,21 @@ Singleton {
         const error = root.hyprColor(Config.error);
         // The shell's own shadow tone, so windows and panels sit at the same depth.
         const shadowTone = Config.shadow;
-        Quickshell.execDetached(["hyprctl", "--batch",
-            `keyword decoration:shadow:color ${root.hyprColorAlpha(shadowTone, 0.8)} ; ` +
-            `keyword decoration:shadow:color_inactive ${root.hyprColorAlpha(shadowTone, 0.5)} ; ` +
-            `keyword general:col.active_border ${primary} ; ` +
-            `keyword general:col.inactive_border ${outline} ; ` +
-            `keyword group:col.border_active ${primary} ; ` +
-            `keyword group:col.border_inactive ${outline} ; ` +
-            `keyword group:col.border_locked_active ${error} ; ` +
-            `keyword group:col.border_locked_inactive ${outline} ; ` +
-            `keyword group:groupbar:col.active ${primary} ; ` +
-            `keyword group:groupbar:col.inactive ${outline} ; ` +
-            `keyword group:groupbar:col.locked_active ${error} ; ` +
-            `keyword group:groupbar:col.locked_inactive ${outline} ; ` +
-            `keyword misc:background_color ${root.hyprColor(Config.bg)}`]);
+        HyprCtl.setOptions({
+            "decoration:shadow:color": root.hyprColorAlpha(shadowTone, 0.8),
+            "decoration:shadow:color_inactive": root.hyprColorAlpha(shadowTone, 0.5),
+            "general:col.active_border": primary,
+            "general:col.inactive_border": outline,
+            "group:col.border_active": primary,
+            "group:col.border_inactive": outline,
+            "group:col.border_locked_active": error,
+            "group:col.border_locked_inactive": outline,
+            "group:groupbar:col.active": primary,
+            "group:groupbar:col.inactive": outline,
+            "group:groupbar:col.locked_active": error,
+            "group:groupbar:col.locked_inactive": outline,
+            "misc:background_color": root.hyprColor(Config.bg)
+        });
     }
 
     // Switching a theme changes several colours at once; coalesce into one hyprctl call.
@@ -66,8 +67,8 @@ Singleton {
         function onShadowChanged() { debounce.restart(); }
     }
 
-    // A config reload (game mode leaving, or Hyprland picking up an edited hyprland.conf)
-    // drops the keywords set above, so put them back.
+    // A config reload (game mode leaving, or Hyprland picking up an edited config)
+    // drops the values set above, so put them back.
     Connections {
         target: Hyprland
         function onRawEvent(event) {

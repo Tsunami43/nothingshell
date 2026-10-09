@@ -8,6 +8,7 @@ singleton Brightness Brightness.qml
 singleton Notifs Notifs.qml
 singleton Lock Lock.qml
 singleton Hypr Hypr.qml
+singleton HyprCtl HyprCtl.qml
 singleton HyprColors HyprColors.qml
 singleton Bat Bat.qml
 singleton Capture Capture.qml

@@ -8,7 +8,7 @@ Singleton {
     id: root
 
     function lock()     { Lock.locked = true; }
-    function logout()   { Quickshell.execDetached(["hyprctl", "dispatch", "exit"]); }
+    function logout()   { HyprCtl.exit(); }
     function suspend()  { Quickshell.execDetached(["systemctl", "suspend"]); }
     function reboot()   { Quickshell.execDetached(["systemctl", "reboot"]); }
     function poweroff() { Quickshell.execDetached(["systemctl", "poweroff"]); }

@@ -35,6 +35,6 @@ Singleton {
     function setDisplays(on) {
         if (root.displaysOff === !on) return;
         root.displaysOff = !on;
-        Quickshell.execDetached(["hyprctl", "dispatch", "dpms", on ? "on" : "off"]);
+        HyprCtl.dpms(on);
     }
 }

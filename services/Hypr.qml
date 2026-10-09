@@ -52,33 +52,42 @@ Singleton {
         if (!a) return "";
         return a.startsWith("0x") ? a : "0x" + a;
     }
+    // Silent: moving a window from the overview must not drag the view along with it.
+    function moveArgs(addr, ws) {
+        return ["movetoworkspacesilent " + ws + ",address:" + addr,
+                "hl.dsp.window.move(" + HyprCtl.luaTable({ workspace: ws, follow: false, window: "address:" + addr }) + ")"];
+    }
     function moveWindow(addr, ws) {
         if (!addr || !ws) return;
-        // Silent: moving a window from the overview must not drag the view along with it.
-        Hyprland.dispatch("movetoworkspacesilent " + ws + ",address:" + addr);
+        const a = root.moveArgs(addr, ws);
+        HyprCtl.dispatch(a[0], a[1]);
     }
-    function focusWindow(addr) { if (addr) Hyprland.dispatch("focuswindow address:" + addr); }
-    function closeWindow(addr) { if (addr) Hyprland.dispatch("closewindow address:" + addr); }
+    function focusWindow(addr) {
+        if (addr) HyprCtl.dispatch("focuswindow address:" + addr,
+                                   "hl.dsp.focus(" + HyprCtl.luaTable({ window: "address:" + addr }) + ")");
+    }
+    function closeWindow(addr) {
+        if (addr) HyprCtl.dispatch("closewindow address:" + addr,
+                                   "hl.dsp.window.close(" + HyprCtl.luaTable({ window: "address:" + addr }) + ")");
+    }
 
     // A workspace id mid-swap (0 = idle), so its row can refuse a second drag while it settles.
     property int wsBusy: 0
 
     // Hyprland has no single-monitor workspace swap — `swapactiveworkspaces` takes two MONITORS.
     // Address every window instead, with both lists snapshotted before anything is sent.
-    //
-    // One `hyprctl --batch`, not a loop of dispatch(): quickshell opens a socket per dispatch and
-    // writes on connect, so back-to-back calls have no guaranteed order — and here order decides
-    // which workspace a window ends up on.
+    // One ordered request (HyprCtl.dispatchAll): here order decides which workspace a window ends
+    // up on.
     function swapWorkspaces(a, b) {
         if (!a || !b || a === b) return;
         const wa = wsWindows(a).map(t => addrOf(t)).filter(x => x);
         const wb = wsWindows(b).map(t => addrOf(t)).filter(x => x);
         if (wa.length === 0 && wb.length === 0) return;
-        const cmds = wa.map(x => "dispatch movetoworkspacesilent " + b + ",address:" + x)
-                       .concat(wb.map(x => "dispatch movetoworkspacesilent " + a + ",address:" + x));
+        const cmds = wa.map(x => root.moveArgs(x, b)).concat(wb.map(x => root.moveArgs(x, a)));
         // Emptying a workspace makes Hyprland reap it, which can take focus with it.
-        cmds.push("dispatch workspace " + root.activeWs);
-        Quickshell.execDetached(["hyprctl", "--batch", cmds.join(" ; ")]);
+        cmds.push(["workspace " + root.activeWs,
+                   "hl.dsp.focus(" + HyprCtl.luaTable({ workspace: root.activeWs }) + ")"]);
+        HyprCtl.dispatchAll(cmds);
     }
 
     // App class → Material Symbol by desktop-entry category.

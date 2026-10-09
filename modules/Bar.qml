@@ -138,7 +138,7 @@ PanelWindow {
             // Scroll over the workspaces to switch (up = previous, down = next).
             WheelHandler {
                 acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-                onWheel: e => Hyprland.dispatch(e.angleDelta.y > 0 ? "workspace e-1" : "workspace e+1")
+                onWheel: e => HyprCtl.workspace(e.angleDelta.y > 0 ? "e-1" : "e+1")
             }
 
             // Pill background grouping the whole workspace column (matches the network pill below).
@@ -203,7 +203,7 @@ PanelWindow {
                             Behavior on width { SpatialFast {} }
                             Behavior on color { ColorAnim {} }
                         }
-                        StateLayer { ovRadius: 14; onTapped: Hyprland.dispatch("workspace " + parent.ws) }
+                        StateLayer { ovRadius: 14; onTapped: HyprCtl.workspace(parent.ws) }
                     }
                 }
             }

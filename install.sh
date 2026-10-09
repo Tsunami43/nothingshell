@@ -3,7 +3,7 @@
 #
 # Cloning this repository into ~/.config/quickshell/nothingshell IS the installation: the tree is
 # the quickshell config, the shaders come baked, there is nothing to build. What is left over is
-# everything outside the tree — the packages, the one `source =` line in hyprland.conf, and
+# everything outside the tree — the packages, the one line in hyprland.lua or hyprland.conf, and
 # starting the thing — and that is all this script does. It is a convenience, not a package
 # manager: run it or do the four steps by hand from the README, the result is the same.
 #
@@ -20,8 +20,17 @@ set -euo pipefail
 SRC="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 DEST="$CONFIG_HOME/quickshell/nothingshell"
-HYPR_CONF="$CONFIG_HOME/hypr/hyprland.conf"
-SOURCE_LINE="source = $DEST/hypr/nothingshell.conf"
+# Hyprland reads hyprland.lua when there is one and falls back to hyprland.conf, so wire whichever
+# it will actually load — a line in the other file would never run.
+if [ -f "$CONFIG_HOME/hypr/hyprland.lua" ]; then
+    HYPR_CONF="$CONFIG_HOME/hypr/hyprland.lua"
+    SOURCE_LINE="require(\"$DEST/hypr/nothingshell\")"
+    HYPR_FILE="hypr/nothingshell.lua"
+else
+    HYPR_CONF="$CONFIG_HOME/hypr/hyprland.conf"
+    SOURCE_LINE="source = $DEST/hypr/nothingshell.conf"
+    HYPR_FILE="hypr/nothingshell.conf"
+fi
 
 ASSUME_YES=0
 DO_DEPS=1
@@ -76,7 +85,7 @@ install_packages() {
         note "  required: ${REQUIRED[*]}"
         note "  optional: ${OPTIONAL[*]} ${AUR[*]}"
         note ""
-        note "The first five are required. quickshell 0.3.0 and Hyprland 0.55 are the versions"
+        note "The first five are required. quickshell 0.3.1 and Hyprland 0.56 are the versions"
         note "this is built against. Everything else backs one feature and costs only that one."
         ask "Continue without installing them?" || exit 1
         return
@@ -173,9 +182,8 @@ place_clone() {
         ask "Do that?" || return
         mkdir -p "$(dirname "$DEST")"
         # A failed clone is the end of the run, not something to carry on past: the next step
-        # would write a `source =` line pointing at a directory that does not exist, and a
-        # missing sourced file is a hard error in Hyprland — a broken config in exchange for a
-        # failed download.
+        # would write a line pointing at a directory that does not exist, and a missing sourced
+        # file is a hard error in Hyprland — a broken config in exchange for a failed download.
         if ! git clone "$origin" "$DEST"; then
             rm -rf "$DEST"
             echo >&2
@@ -203,7 +211,7 @@ wire_hyprland() {
         note "  $SOURCE_LINE"
         return
     fi
-    if grep -qF "hypr/nothingshell.conf" "$HYPR_CONF"; then
+    if grep -qE "hypr/nothingshell(\.conf|\.lua|\")" "$HYPR_CONF"; then
         note "Already sourced from $HYPR_CONF."
         return
     fi
@@ -212,10 +220,12 @@ wire_hyprland() {
     note "  $SOURCE_LINE"
     note ""
     note "It claims SUPER+Space (launcher), SUPER+N (settings) and the"
-    note "Print keys. Read $DEST/hypr/nothingshell.conf first if you have bindings there."
+    note "Print keys. Read $DEST/$HYPR_FILE first if you have bindings there."
     if ask "Append it?"; then
         cp -a "$HYPR_CONF" "$HYPR_CONF.bak-$(date +%Y%m%d-%H%M%S)"
-        printf '\n# nothingshell\n%s\n' "$SOURCE_LINE" >> "$HYPR_CONF"
+        local c="#"
+        [ "${HYPR_CONF##*.}" = "lua" ] && c="--"
+        printf '\n%s nothingshell\n%s\n' "$c" "$SOURCE_LINE" >> "$HYPR_CONF"
         note "Appended. A backup of the previous file sits next to it."
         command -v hyprctl >/dev/null 2>&1 && [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] \
             && hyprctl reload >/dev/null && note "hyprctl reload: done"

@@ -46,8 +46,8 @@ if [ "${1:-}" = "--uninstall" ]; then
         echo "or greetd will start a login screen that is no longer there." >&2
     fi
 
-    rm -rf "$SHELL_DIR" "$CACHE" /etc/greetd/hyprland.conf /etc/greetd/session.sh
-    echo "removed $SHELL_DIR, $CACHE, /etc/greetd/hyprland.conf, /etc/greetd/session.sh"
+    rm -rf "$SHELL_DIR" "$CACHE" /etc/greetd/hyprland.conf /etc/greetd/hyprland.lua /etc/greetd/session.sh
+    echo "removed $SHELL_DIR, $CACHE, /etc/greetd/hyprland.{conf,lua}, /etc/greetd/session.sh"
     echo "the timestamped backups are left alone; delete them yourself once you are happy."
     echo
     echo "apply it with:  sudo systemctl restart greetd    # kills the current graphical session!"
@@ -120,10 +120,20 @@ if ! sudo -u greeter test -r "$WALLPAPERS"; then
     echo "  and traversal (x) on every directory above it, up to and including your home."
 fi
 
-install -Dm644 "$SRC/hyprland.conf" /etc/greetd/hyprland.conf
+# Lua from 0.55, where hyprlang is deprecated on its way out; hyprlang before, where Lua does not
+# exist yet. Only one is installed — session.sh starts whichever is there.
+# Hyprland aborts without XDG_RUNTIME_DIR, even for --version, and sudo strips it. A version that
+# cannot be read is taken for a current one: Lua is where every release from here on is going.
+HYPR_VER="$(XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}" Hyprland --version 2>/dev/null \
+    | sed -n '1s/^Hyprland \([0-9]*\)\.\([0-9]*\).*/\1 \2/p' || true)"
+read -r HV_MAJOR HV_MINOR <<< "${HYPR_VER:-0 55}"
+if [ "$HV_MAJOR" -gt 0 ] || [ "$HV_MINOR" -ge 55 ]; then GREETER_CFG=hyprland.lua; else GREETER_CFG=hyprland.conf; fi
+rm -f /etc/greetd/hyprland.conf /etc/greetd/hyprland.lua
+install -Dm644 "$SRC/$GREETER_CFG" "/etc/greetd/$GREETER_CFG"
 # The greeter runs as its own account, so it cannot expand the path itself — bake the real
 # location of the installed copy into the config.
-sed -i "s|@GREETER_ENTRY@|$SHELL_DIR/greeter.qml|" /etc/greetd/hyprland.conf
+sed -i "s|@GREETER_ENTRY@|$SHELL_DIR/greeter.qml|" "/etc/greetd/$GREETER_CFG"
+echo "compositor config: /etc/greetd/$GREETER_CFG (Hyprland $HV_MAJOR.$HV_MINOR)"
 install -Dm755 "$SRC/session.sh"    /etc/greetd/session.sh
 
 install -d -o greeter -g greeter -m 755 "$CACHE"

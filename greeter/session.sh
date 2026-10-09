@@ -12,4 +12,7 @@ mkdir -p "$XDG_CACHE_HOME" "$XDG_STATE_HOME" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME"
 
 # Through the watchdog wrapper, same as a normal session — starting Hyprland directly
 # makes it draw a "started without start-hyprland" warning overlay on top of the greeter.
-exec start-hyprland -- -c /etc/greetd/hyprland.conf
+# install.sh installs one of the two, whichever the installed Hyprland reads.
+CFG=/etc/greetd/hyprland.lua
+[ -f "$CFG" ] || CFG=/etc/greetd/hyprland.conf
+exec start-hyprland -- -c "$CFG"

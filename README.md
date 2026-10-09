@@ -16,15 +16,36 @@ there does `install.sh` install anything, through pacman and an AUR helper.
 ```sh
 git clone https://github.com/Tsunami43/nothingshell ~/.config/quickshell/nothingshell
 cd ~/.config/quickshell/nothingshell
-./install.sh -y     # packages, the hyprland.conf line, first start — no questions
+./install.sh -y     # packages, the Hyprland config line, first start — no questions
 ```
 
-The script appends the line that wires the shell into `hyprland.conf` itself. If you are doing it
-by hand, or turned that step down, here it is:
+The script appends the line that wires the shell into your Hyprland config itself — into
+`hyprland.lua` if you have one, since that is what Hyprland 0.55+ loads, and `hyprland.conf`
+otherwise. If you are doing it by hand, or turned that step down, it is the last line of
+`hyprland.lua`:
+
+```lua
+require("~/.config/quickshell/nothingshell/hypr/nothingshell")
+```
+
+or, for a hyprlang config:
 
 ```
 source = ~/.config/quickshell/nothingshell/hypr/nothingshell.conf
 ```
+
+The shell works out which of the two Hyprland is running and speaks to it accordingly.
+
+### Hyprland version
+
+`master` is written for a Lua config, which needs Hyprland 0.55 or newer, and is what gets
+tested — on 0.56 at the moment. Hyprland drops the hyprlang (`.conf`) format in 0.57, so Lua is
+the only way forward. A `hyprland.conf` still works on `master` for as long as your Hyprland
+reads one, i.e. before 0.57, but nothing new is checked against it.
+
+If you are staying on an older Hyprland with a hyprlang config, the
+[`hyprland-pre-0.57`](https://github.com/Tsunami43/nothingshell/tree/hyprland-pre-0.57) branch is
+the last state of the shell from before the Lua work. It is frozen: no fixes, no new features.
 
 The login screen (optional):
 
@@ -71,14 +92,15 @@ newest backup: the installer makes one on every run, including runs when nothing
 installed, so the newest one usually points right back here. What is wanted is the newest backup
 from before it — that is the one the script looks for.
 
-**2. The shell itself.** Take the `source = …/hypr/nothingshell.conf` line out of `hyprland.conf`
-first: a missing file in a `source` is a hard error in Hyprland, so deleting the directory ahead
-of that leaves the next `hyprctl reload` walking into it. Then:
+**2. The shell itself.** Take the `require(…/hypr/nothingshell)` line out of `hyprland.lua` (or the
+`source = …/hypr/nothingshell.conf` line out of `hyprland.conf`) first: a missing file there is a
+hard error in Hyprland, so deleting the directory ahead of that leaves the next `hyprctl reload`
+walking into it. Then:
 
 ```sh
 qs -c nothingshell kill                         # stop the shell
 rm -rf ~/.config/quickshell/nothingshell        # this is the uninstall
-hyprctl reload                                  # re-read the config, now without the source line
+hyprctl reload                                  # re-read the config, now without that line
 ```
 
 **3. Settings and generated state** live outside the tree and survive on purpose. If you want them

@@ -12,7 +12,12 @@ for _ in $(seq 40); do
     [ "$p" -le 1 ] && break
     for w in "${wins[@]}"; do
         if [ "$w" = "$p" ]; then
-            hyprctl dispatch focuswindow "pid:$p" >/dev/null 2>&1
+            # A Lua config takes dispatches as hl.dsp expressions.
+            if hyprctl -j status 2>/dev/null | grep -q '"configProvider": *"lua"'; then
+                hyprctl dispatch "hl.dsp.focus({ window = \"pid:$p\" })" >/dev/null 2>&1
+            else
+                hyprctl dispatch focuswindow "pid:$p" >/dev/null 2>&1
+            fi
             exit 0
         fi
     done

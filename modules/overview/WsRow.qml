@@ -4,7 +4,6 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
-import Quickshell.Hyprland
 import qs
 import qs.components
 import qs.services
@@ -64,9 +63,8 @@ Rectangle {
     StateLayer {
         ovRadius: row.radius
         z: -1
-        // activate() where the workspace exists; a slot Hyprland hasn't created yet has no object,
-        // so the dispatch fallback is required, not decorative.
-        onTapped: { if (row.hws) row.hws.activate(); else Hyprland.dispatch("workspace " + row.ws) }
+        // Not HyprlandWorkspace.activate(): it dispatches in hyprlang, which a Lua config rejects.
+        onTapped: HyprCtl.workspace(row.ws)
     }
 
     ColumnLayout {
@@ -133,8 +131,7 @@ Rectangle {
                 }
                 onReleased: {
                     if (hdrMa.armed) { hdrMa.armed = false; row.panel.endDrag(); return; }
-                    if (row.hws) row.hws.activate();
-                    else Hyprland.dispatch("workspace " + row.ws);
+                    HyprCtl.workspace(row.ws);
                 }
                 onCanceled: { if (hdrMa.armed) { hdrMa.armed = false; row.panel.cancelDrag(); } }
             }

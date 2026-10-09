@@ -56,11 +56,13 @@ Singleton {
     // matugen's output. Generated, never authored, and reproducible from the wallpaper at any
     // time — so it belongs in state, not among the things a person edits or backs up.
     readonly property string themeFile: root.stateDir + "/theme.json"
-    // Hyprland fragments the settings window regenerates in full (displays, keyboard layouts).
-    // Source them from hyprland.conf; see hypr/nothingshell.conf.
+    // Hyprland fragments the settings window regenerates in full (displays, keyboard layouts), in
+    // whichever language the compositor's config is written. See hypr/nothingshell.{conf,lua}.
     readonly property string hyprDir: root.configDir + "/hypr"
     readonly property string monitorsConf: root.hyprDir + "/monitors.conf"
     readonly property string inputConf: root.hyprDir + "/input.conf"
+    readonly property string monitorsLua: root.hyprDir + "/monitors.lua"
+    readonly property string inputLua: root.hyprDir + "/input.lua"
     // Where the picked still is copied under a fixed name, for anything outside the shell that
     // wants to know what the wallpaper is.
     readonly property string currentWallpaper: root.pictures + "/wallpapers/static-wallpaper.png"
@@ -74,6 +76,7 @@ Singleton {
     // for real only once someone opens Settings > Displays or Language & input, but the `source =`
     // lines that pick them up live in hyprland.conf from the start, and a missing file there is a
     // hard error in Hyprland. An empty fragment is a valid one; the settings window overwrites it.
+    // The Lua pair needs no stand-in: nothingshell.lua pulls them in through pcall.
     Component.onCompleted: mkdirs.running = true
     Process {
         id: mkdirs

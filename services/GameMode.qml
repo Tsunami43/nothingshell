@@ -13,14 +13,15 @@ Singleton {
     property bool enabled: false
 
     function apply() {
-        Quickshell.execDetached(["hyprctl", "--batch",
-            "keyword animations:enabled 0 ; " +
-            "keyword decoration:blur:enabled 0 ; " +
-            "keyword decoration:shadow:enabled 0 ; " +
-            "keyword general:gaps_in 0 ; " +
-            "keyword general:gaps_out 0 ; " +
-            "keyword decoration:rounding 0 ; " +
-            "keyword general:allow_tearing 1"]);
+        HyprCtl.setOptions({
+            "animations:enabled": false,
+            "decoration:blur:enabled": false,
+            "decoration:shadow:enabled": false,
+            "general:gaps_in": 0,
+            "general:gaps_out": 0,
+            "decoration:rounding": 0,
+            "general:allow_tearing": true
+        });
     }
 
     function toggle() {

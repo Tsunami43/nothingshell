@@ -2,7 +2,7 @@
 // greetd greeter — the lock screen's twin: same video wallpaper, clock and password
 // field, but it authenticates through greetd and launches the session on success.
 // Run by greetd as the `greeter` user: qs -p ~/.config/quickshell/greeter (install.sh bakes
-// the real absolute path into /etc/greetd/hyprland.conf).
+// the real absolute path into /etc/greetd/hyprland.lua or .conf).
 // Under a normal user greetd is unavailable, so it just previews the UI (Esc quits).
 pragma ComponentBehavior: Bound
 
